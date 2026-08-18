@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
-		8F9D4A92302517A500E1E5B9 /* Vector.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Vector.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		8F9D4A92302517A500E1E5B9 /* Vector.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; name = Vector.app; path = "/Users/avelinamaksimchik/Desktop/projects/Vector/program/Vector/build/Debug-iphoneos/Vector.app"; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -33,16 +33,7 @@
 			isa = PBXGroup;
 			children = (
 				8F9D4A94302517A500E1E5B9 /* Vector */,
-				8F9D4A93302517A500E1E5B9 /* Products */,
 			);
-			sourceTree = "<group>";
-		};
-		8F9D4A93302517A500E1E5B9 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				8F9D4A92302517A500E1E5B9 /* Vector.app */,
-			);
-			name = Products;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -95,7 +86,7 @@
 			mainGroup = 8F9D4A89302517A500E1E5B9;
 			minimizedProjectReferenceProxies = 1;
 			preferredProjectObjectVersion = 77;
-			productRefGroup = 8F9D4A93302517A500E1E5B9 /* Products */;
+			productRefGroup = 8F9D4A89302517A500E1E5B9;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (

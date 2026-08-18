@@ -7,9 +7,37 @@
 
 import SwiftUI
 
-struct VectorArrow: View {
-    var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
+struct VectorArrow: Shape {
+    func path (in rect: CGRect) -> Path {
+        var path = Path()
+        
+        let start = CGPoint(
+            x: rect.minX,
+            y: rect.maxY)
+        
+        let end = CGPoint(
+            x: rect.maxX,
+            y: rect.minY)
+        
+        //линия
+        path.move(to: start)
+        path.addLine(to: end)
+        
+        
+        //наконечник
+        let arrowSize = min(rect.width, rect.height) * 0.16
+        
+        path.move(to: CGPoint(
+            x: end.x - arrowSize,
+            y: end.y))
+        
+        path.addLine(to: end)
+        path.addLine(to: CGPoint(
+            x: end.x,
+            y: end.y + arrowSize))
+        
+        return path
+        
     }
 }
 
