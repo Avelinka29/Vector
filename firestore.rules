@@ -1,0 +1,267 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null
+        && request.auth.uid == userId;
+    }
+
+    function validProfileStatus(status) {
+      return status in [
+        "notStarted",
+        "inProgress",
+        "complete"
+      ];
+    }
+
+    function validProfileStep(step) {
+      return step is int
+        && step >= 1
+        && step <= 10;
+    }
+
+    function validUserCreate(userId) {
+      return request.resource.data.keys().hasAll([
+          "uid",
+          "email",
+          "profileStatus",
+          "currentProfileStep",
+          "createdAt",
+          "updatedAt"
+        ])
+        && request.resource.data.keys().hasOnly([
+          "uid",
+          "email",
+          "profileStatus",
+          "currentProfileStep",
+          "createdAt",
+          "updatedAt"
+        ])
+        && request.resource.data.uid is string
+        && request.resource.data.uid == userId
+        && request.resource.data.email is string
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.profileStatus == "notStarted"
+        && request.resource.data.currentProfileStep == 1
+        && request.resource.data.createdAt is timestamp
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function validUserUpdate() {
+      return request.resource.data.uid == resource.data.uid
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data
+             .diff(resource.data)
+             .affectedKeys()
+             .hasOnly([
+               "profileStatus",
+               "currentProfileStep",
+               "updatedAt"
+             ])
+        && validProfileStatus(request.resource.data.profileStatus)
+        && validProfileStep(request.resource.data.currentProfileStep)
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    function validPersonal(data) {
+      return data.keys().hasAll([
+          "lastName",
+          "firstName",
+          "patronymic"
+        ])
+        && data.keys().hasOnly([
+          "lastName",
+          "firstName",
+          "patronymic",
+          "birthDate"
+        ])
+        && data.lastName is string
+        && data.firstName is string
+        && data.patronymic is string
+        && (!data.keys().hasAny(["birthDate"])
+            || data.birthDate is timestamp);
+    }
+
+    function validContact(data) {
+      return data.keys().hasAll([
+          "email",
+          "phone",
+          "reservePhone"
+        ])
+        && data.keys().hasOnly([
+          "email",
+          "phone",
+          "reservePhone"
+        ])
+        && data.email is string
+        && data.phone is string
+        && data.reservePhone is string;
+    }
+
+    function validPassport(data) {
+      return data.keys().hasAll([
+          "seriesAndNumber",
+          "identificationNumber",
+          "issuedBy"
+        ])
+        && data.keys().hasOnly([
+          "seriesAndNumber",
+          "identificationNumber",
+          "issueDate",
+          "issuedBy"
+        ])
+        && data.seriesAndNumber is string
+        && data.identificationNumber is string
+        && data.issuedBy is string
+        && (!data.keys().hasAny(["issueDate"])
+            || data.issueDate is timestamp);
+    }
+
+    function validAddress(data) {
+      return data.keys().hasAll([
+          "countryID",
+          "regionID",
+          "cityID",
+          "street",
+          "house",
+          "apartment"
+        ])
+        && data.keys().hasOnly([
+          "countryID",
+          "regionID",
+          "cityID",
+          "street",
+          "house",
+          "apartment"
+        ])
+        && data.countryID is string
+        && data.regionID is string
+        && data.cityID is string
+        && data.street is string
+        && data.house is string
+        && data.apartment is string;
+    }
+
+    function validEducation(data) {
+      return data.keys().hasOnly([
+          "status",
+          "graduationYear"
+        ])
+        && (!data.keys().hasAny(["status"])
+            || data.status in [
+              "grade11",
+              "grade9",
+              "university",
+              "college"
+            ])
+        && (!data.keys().hasAny(["graduationYear"])
+            || data.graduationYear is int);
+    }
+
+    function validInstitution(data) {
+      return data.keys().hasAll([
+          "name",
+          "locality",
+          "profileClass"
+        ])
+        && data.keys().hasOnly([
+          "name",
+          "locality",
+          "profileClass"
+        ])
+        && data.name is string
+        && data.locality is string
+        && data.profileClass is string;
+    }
+
+    function validAdditional(data) {
+      return data.keys().hasAll([
+          "citizenship",
+          "needsDormitory",
+          "targetEducation",
+          "comment"
+        ])
+        && data.keys().hasOnly([
+          "citizenship",
+          "needsDormitory",
+          "targetEducation",
+          "comment"
+        ])
+        && data.citizenship is string
+        && data.needsDormitory is bool
+        && data.targetEducation is bool
+        && data.comment is string;
+    }
+
+    function validApplicantProfile() {
+      return request.resource.data.keys().hasAll([
+          "personal",
+          "contact",
+          "passport",
+          "address",
+          "education",
+          "institution",
+          "documents",
+          "examResults",
+          "achievements",
+          "additional"
+        ])
+        && request.resource.data.keys().hasOnly([
+          "personal",
+          "contact",
+          "passport",
+          "address",
+          "education",
+          "institution",
+          "documents",
+          "examResults",
+          "achievements",
+          "additional"
+        ])
+        && request.resource.data.personal is map
+        && validPersonal(request.resource.data.personal)
+        && request.resource.data.contact is map
+        && validContact(request.resource.data.contact)
+        && request.resource.data.passport is map
+        && validPassport(request.resource.data.passport)
+        && request.resource.data.address is map
+        && validAddress(request.resource.data.address)
+        && request.resource.data.education is map
+        && validEducation(request.resource.data.education)
+        && request.resource.data.institution is map
+        && validInstitution(request.resource.data.institution)
+        && request.resource.data.documents is list
+        && request.resource.data.examResults is list
+        && request.resource.data.achievements is list
+        && request.resource.data.additional is map
+        && validAdditional(request.resource.data.additional);
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+
+      allow create: if isOwner(userId)
+                    && validUserCreate(userId);
+
+      allow update: if isOwner(userId)
+                    && validUserUpdate();
+
+      allow delete: if false;
+    }
+
+    match /applicantProfiles/{userId} {
+      allow read: if isOwner(userId);
+
+      allow create, update: if isOwner(userId)
+                            && validApplicantProfile();
+
+      allow delete: if isOwner(userId);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
