@@ -1,321 +1,216 @@
-//
-//  CreateProfileView.swift
-//  Vector
-//
-//  Created by Avelina Maksimchik on 29.08.2026.
-//
-
 import SwiftUI
 
 struct CreateProfileView: View {
-    
-    @State private var currentStep = 1
-    let totalSteps = 10
-    
-    
-    //firstStep
-    @State private var firstName = ""
-    @State private var lastName = ""
-    @State private var patronymic = ""
-    @State private var birthdate = ""
-    
-    
-    //secondStep
-    @State private var email = ""
-    @State private var phone = ""
-    @State private var phone_rez = ""
-    
-    //thirdStep
-    @State private var serya_num = ""
-    @State private var ident_num = ""
-    @State private var date_of_get = ""
-    @State private var who_give = ""
-    
-    //forthStep
-    @State private var country = ""
-    @State private var region = ""
-    @State private var city = ""
-    @State private var street_home_numFlat = ""
-    
-    //fivethStep
-    
-    
-    
+    @State private var model: RegistrationViewModel
+    @State private var showMain = false
+    let onContinue: (() -> Void)?
+
+    init(
+        model: RegistrationViewModel? = nil,
+        onContinue: (() -> Void)? = nil
+    ) {
+        _model = State(initialValue: model ?? RegistrationViewModel())
+        self.onContinue = onContinue
+    }
+
     var body: some View {
-        
-        
-        
-        VStack(alignment: .leading, spacing: 18) {
-            
-            Spacer()
-            
-            Text("Шаг \(currentStep) из \(totalSteps)")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(.systemDarkBlue.opacity(0.5))
-            
-          
-            
-            Text (stepTitle)
-                .font(.system(size: 30, weight: .bold))
-                .foregroundStyle(.systemDarkBlue)
-            
-            
-                
-            HStack (spacing: 6) {
-                ForEach (1...totalSteps, id: \.self) { step in
-                    
+        Group {
+            if model.isComplete {
+                ProfileCreatedView {
+                    if let onContinue {
+                        onContinue()
+                    } else {
+                        showMain = true
+                    }
+                }
+            } else {
+                RegistrationWizardView(model: model)
+            }
+        }
+        .background(.systemWhite)
+        .navigationBarBackButtonHidden(model.currentStep > 1)
+        .navigationDestination(isPresented: $showMain) {
+            MainTabView(profile: model.profile)
+                .navigationBarBackButtonHidden(true)
+        }
+    }
+}
+
+struct RegistrationWizardView: View {
+    @Bindable var model: RegistrationViewModel
+
+    var body: some View {
+        VStack(spacing: 0) {
+            RegistrationHeader(
+                step: model.currentStep,
+                totalSteps: RegistrationViewModel.totalSteps,
+                title: model.title,
+                subtitle: model.subtitle
+            )
+
+            ScrollView {
+                RegistrationStepContent(model: model)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 22)
+                    .padding(.bottom, 30)
+            }
+            .scrollDismissesKeyboard(.interactively)
+
+            RegistrationNavigationBar(model: model)
+        }
+        .background(.systemWhite)
+    }
+}
+
+struct RegistrationHeader: View {
+    let step: Int
+    let totalSteps: Int
+    let title: String
+    let subtitle: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Шаг \(step) из \(totalSteps)")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.systemDarkBlue.opacity(0.55))
+
+            HStack(spacing: 6) {
+                ForEach(1...totalSteps, id: \.self) { item in
                     Capsule()
-                        .fill (
-                            step <= currentStep
-                            ? Color.systemBlue01
-                            : Color.systemGrey1.opacity(0.25)
-                        )
+                        .fill(item <= step ? .systemBlue01 : .systemGrey1.opacity(0.25))
                         .frame(height: 5)
                 }
             }
-            
-            Text(stepSubtitle)
-                .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(.systemDarkBlue.opacity(0.5))
-            
-            
-            stepContent
-            
-            
-            
-            
+
+            Text(title)
+                .font(.largeTitle.bold())
+                .foregroundStyle(.systemDarkBlue)
+
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundStyle(.systemDarkBlue.opacity(0.55))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 24)
+        .padding(.top, 14)
+        .padding(.bottom, 4)
+        .background(.systemWhite)
+    }
+}
+
+struct RegistrationStepContent: View {
+    let model: RegistrationViewModel
+
+    var body: some View {
+        VStack {
+            switch model.currentStep {
+            case 1: PersonalStepView(model: model)
+            case 2: ContactStepView(model: model)
+            case 3: PassportStepView(model: model)
+            case 4: AddressStepView(model: model)
+            case 5: EducationStepView(model: model)
+            case 6: InstitutionStepView(model: model)
+            case 7: DocumentsStepView(model: model)
+            case 8: ExamResultsStepView(model: model)
+            case 9: AchievementsStepView(model: model)
+            case 10: AdditionalStepView(model: model)
+            default: EmptyView()
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: model.currentStep)
+    }
+}
+
+struct RegistrationNavigationBar: View {
+    let model: RegistrationViewModel
+
+    var body: some View {
+        VStack(spacing: 10) {
+            if let saveError = model.saveError {
+                Text(saveError)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
             Button {
-                nextStep()
+                Task {
+                    await model.advance()
+                }
             } label: {
                 HStack(spacing: 10) {
-                    Text(currentStep == totalSteps ? "Завершить" : "Далее")
-                    
-                    if currentStep != totalSteps {
-                        Image(systemName: "arrow.right")
+                    if model.isSaving {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Text(model.currentStep == RegistrationViewModel.totalSteps ? "Создать профиль" : "Далее")
+                        if model.currentStep < RegistrationViewModel.totalSteps {
+                            Image(systemName: "arrow.right")
+                        }
                     }
                 }
-                .font(.system(size: 18, weight: .medium))
-                .foregroundStyle(.systemWhite)
-                .frame(maxWidth: .infinity)
-                .frame(height: 60)
-                .background(.systemBlue01)
-                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .font(.headline)
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, minHeight: 56)
+                .background(.systemBlue01, in: RoundedRectangle(cornerRadius: 16))
             }
-            
-            if currentStep > 1 {
-                Button {
-                    previosStep()
-                } label: {
-                    Text("Назад")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(.systemBlue01)
-                        .frame(maxWidth: .infinity)
-                    
+            .disabled(model.isSaving)
+            .opacity(model.isSaving ? 0.7 : 1)
+
+            if model.currentStep > 1 {
+                Button("Назад") {
+                    model.goBack()
                 }
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.systemBlue01)
+                .frame(maxWidth: .infinity, minHeight: 38)
             }
-            
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .background(.systemWhite.shadow(.drop(color: .black.opacity(0.06), radius: 8, y: -3)))
+    }
+}
+
+struct ProfileCreatedView: View {
+    let onContinue: () -> Void
+
+    var body: some View {
+        VStack(spacing: 24) {
             Spacer()
-            
-            
-        }.padding(.horizontal, 24)
-            
-        
-    }
-    
-    private func nextStep () {
-        if currentStep < totalSteps {
-            currentStep += 1
-        }
-    }
-    private func previosStep () {
-        if currentStep > 1 {
-            currentStep -= 1
-        }
-    }
-    
-    
-    private var stepTitle: String {
-        
-        switch currentStep {
-            
-        case 1:
-            return "Личные данные"
-            
-        case 2:
-            return "Контактная информация"
-            
-        case 3:
-            return "Паспортные данные"
-            
-        case 4:
-            return "Адрес проживания"
-            
-        case 5:
-            return "Образование"
-            
-        case 6:
-            return "Учебное заведение"
-            
-        case 7:
-            return "Документы"
-            
-        case 8:
-            return "Результаты ЦЭ / ЦТ"
-            
-        case 9:
-            return "Достижения"
-            
-        case 10:
-            return "Достижения"
-            
-        default:
-            return ""
-        }
-        
-    }
-    
-    private var stepSubtitle: String {
-        switch currentStep {
-            
-        case 1:
-            return "Укажите основную информация о себе"
-            
-        case 2:
-            return "Как с Вами можно связаться"
-            
-        case 3:
-            return "Укажите данные паспорта"
-            
-        case 4:
-            return "Укажите адрес вашей прописки"
-            
-        case 5:
-            return "Укажите ваш текущий статус"
-            
-        case 6:
-            return "Укажите вашу школу"
-            
-        case 7:
-            return "Загрузите необходимые документы"
-            
-        case 8:
-            return "Укажите ваши результаты"
-            
-        case 9:
-            return "Расскажите о своих достижениях"
-            
-        case 10:
-            return "Дополнительная информация"
-            
-            
-        default:
-            return ""
-        }
-    }
-    
-    @ViewBuilder
-    private var stepContent: some View {
-        
-        switch currentStep {
-        case 1:
-            VStack(spacing: 18) {
-                VectorTextField2(placeholder: "Фамилия", icon: "person", text: $lastName)
-                
-                VectorTextField2(placeholder: "Имя", icon: "person",
-                                 text: $firstName)
-                
-                VectorTextField2(placeholder: "Отчество", icon: "person",
-                                 text: $patronymic)
-                
-                VectorTextField2(placeholder: "Дата рождения", icon: "birthday.cake",
-                                 text: $birthdate)
 
-            }
-            
-        case 2:
-            VStack(spacing: 18) {
-                VectorTextField2(placeholder: "Email", icon: "envelope", text: $email)
-                
-                VectorTextField2(placeholder: "Телефон", icon: "phone.fill",
-                                 text: $phone)
-                
-                VectorTextField2(placeholder: "Резервный телефон (необязательно)", icon: "phone.fill",
-                                 text: $phone_rez)
-                
-            }
-            
-        case 3:
-            VStack(spacing: 18) {
-                VectorTextField2(placeholder: "Серия и Номер", icon: nil, text: $serya_num)
-                
-                VectorTextField2(placeholder: "Идентификационный номер", icon: nil,
-                                 text: $ident_num)
-                
-                VectorTextField2(placeholder: "Дата выдачи", icon: nil, text: $date_of_get)
-                
-                VectorTextField2(placeholder: "Кем выдан", icon: nil, text: $who_give)
-                
-                
-            }
-            
-        case 4:
-            VStack(spacing: 18) {
-                
-                ZStack {
-                    VectorCountryPicker(placeholder: "Выбери страну", countries: countries, selectedCountry: $country)
-                    
-                    
-                }.zIndex(100)
-                
-                
-                VectorTextField2(placeholder: "Область", icon: nil,
-                                 text: $region)
-                
-                VectorTextField2(placeholder: "Город", icon: nil, text: $city)
-                
-                VectorTextField2(placeholder: "Улица, дом, квартира", icon: nil, text: $street_home_numFlat)
-    
-            }
-            
-        
-            
- 
-            
+            Image(systemName: "checkmark")
+                .font(.system(size: 64, weight: .bold))
+                .foregroundStyle(.white)
+                .frame(width: 132, height: 132)
+                .background(.systemBlue01, in: Circle())
+                .shadow(color: .systemBlue01.opacity(0.25), radius: 20, y: 10)
 
-            
-            
-            
-            
-        default:
-            VStack(spacing: 14) {
-                VectorTextField2(placeholder: "Фамилия", icon: "person", text: $firstName)
-                
-                
+            VStack(spacing: 10) {
+                Text("Профиль создан!")
+                    .font(.largeTitle.bold())
+                    .foregroundStyle(.systemDarkBlue)
+                Text("Данные сохранены на этом устройстве. Теперь можно перейти к возможностям Vector.")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
+
+            Spacer()
+
+            Button("Перейти в приложение", action: onContinue)
+                .font(.headline)
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, minHeight: 56)
+                .background(.systemBlue01, in: RoundedRectangle(cornerRadius: 16))
         }
-        
-        
+        .padding(24)
+        .background(.systemWhite)
     }
-    
-    private let countries = [
-            "Беларусь",
-            "Россия",
-            "Украина",
-            "Польша",
-            "Литва",
-            "Латвия",
-            "Германия",
-            "Франция",
-            "ОАЭ",
-            "Китай",
-            "Сингапур",
-            "Другое"
-    ]
-        
-    
-    
 }
 
 #Preview {
-    CreateProfileView()
+    NavigationStack {
+        CreateProfileView()
+    }
 }

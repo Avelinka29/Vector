@@ -7,6 +7,11 @@ service cloud.firestore {
         && request.auth.uid == userId;
     }
 
+    function isAdmin() {
+      return request.auth != null
+        && request.auth.token.admin == true;
+    }
+
     function validProfileStatus(status) {
       return status in [
         "notStarted",
@@ -258,6 +263,22 @@ service cloud.firestore {
                             && validApplicantProfile();
 
       allow delete: if isOwner(userId);
+    }
+
+    match /institutions/{institutionId} {
+      allow read: if isAdmin()
+                  || (request.auth != null
+                      && resource.data.isActive == true);
+
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /specialties/{specialtyId} {
+      allow read: if isAdmin()
+                  || (request.auth != null
+                      && resource.data.isActive == true);
+
+      allow create, update, delete: if isAdmin();
     }
 
     match /{document=**} {

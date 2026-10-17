@@ -12,17 +12,12 @@ struct SplashView: View {
     @State private var showLogo = false
     @State private var showTitle = false
     @State private var showSubtitle = false
-    @State private var hideSplash = false
-    @State private var showLogin = false
     
     var body: some View {
         
         
         ZStack {
-            
-            if !showLogin {
-                
-                GeometryReader { geometry in
+            GeometryReader { geometry in
                     
                     ZStack {
                         
@@ -82,9 +77,9 @@ struct SplashView: View {
                             y: geometry.size.height * 0.78
                         )
                     }
-                }
-                
-                VStack {
+            }
+
+            VStack {
                     
                     Spacer()
                     
@@ -113,18 +108,9 @@ struct SplashView: View {
                         .offset(y: showSubtitle ? 0 : 15)
                     
                     Spacer()
-                }
-                .opacity(hideSplash ? 0 : 1)
-                .scaleEffect(hideSplash ? 1.05 : 1)
-                .transition(.opacity)
-                
             }
-            
-            if showLogin {
-                LoginView()
-                    .transition(.opacity)
-            }
-        }.onAppear{
+        }
+        .onAppear {
             startAnimation()
         }
     }
@@ -146,20 +132,6 @@ struct SplashView: View {
                 showSubtitle = true
             }
         }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.6) {
-            withAnimation(.easeInOut(duration: 0.5)){
-                hideSplash = true
-            }
-        }
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.8) {
-            
-                showLogin = true
-            
-        }
-        
-        
         
     }
     

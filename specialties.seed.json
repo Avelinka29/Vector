@@ -1,0 +1,112 @@
+[
+  {
+    "id": "bsu-applied-informatics",
+    "institutionID": "bsu",
+    "name": "Прикладная информатика",
+    "code": "",
+    "qualification": null,
+    "studyForms": ["Очная"],
+    "sourceURL": "https://abiturient.bsu.by/",
+    "lastVerifiedAt": "2026-10-17",
+    "isActive": true
+  },
+  {
+    "id": "bsu-international-relations",
+    "institutionID": "bsu",
+    "name": "Международные отношения",
+    "code": "",
+    "qualification": null,
+    "studyForms": ["Очная"],
+    "sourceURL": "https://abiturient.bsu.by/",
+    "lastVerifiedAt": "2026-10-17",
+    "isActive": true
+  },
+  {
+    "id": "bntu-architecture",
+    "institutionID": "bntu",
+    "name": "Архитектура",
+    "code": "",
+    "qualification": null,
+    "studyForms": ["Очная"],
+    "sourceURL": "https://bntu.by/priemnaya-kampaniya",
+    "lastVerifiedAt": "2026-10-17",
+    "isActive": true
+  },
+  {
+    "id": "bntu-information-systems",
+    "institutionID": "bntu",
+    "name": "Информационные системы и технологии",
+    "code": "",
+    "qualification": null,
+    "studyForms": ["Очная"],
+    "sourceURL": "https://bntu.by/priemnaya-kampaniya",
+    "lastVerifiedAt": "2026-10-17",
+    "isActive": true
+  },
+  {
+    "id": "bsuir-software-engineering",
+    "institutionID": "bsuir",
+    "name": "Программная инженерия",
+    "code": "",
+    "qualification": null,
+    "studyForms": ["Очная"],
+    "sourceURL": "https://abitur.bsuir.by/",
+    "lastVerifiedAt": "2026-10-17",
+    "isActive": true
+  },
+  {
+    "id": "bsuir-information-systems",
+    "institutionID": "bsuir",
+    "name": "Информационные системы и технологии",
+    "code": "",
+    "qualification": null,
+    "studyForms": ["Очная", "Заочная"],
+    "sourceURL": "https://abitur.bsuir.by/",
+    "lastVerifiedAt": "2026-10-17",
+    "isActive": true
+  },
+  {
+    "id": "bsmu-general-medicine",
+    "institutionID": "bsmu",
+    "name": "Лечебное дело",
+    "code": "",
+    "qualification": null,
+    "studyForms": ["Очная"],
+    "sourceURL": "https://www.bsmu.by/abiturientu/",
+    "lastVerifiedAt": "2026-10-17",
+    "isActive": true
+  },
+  {
+    "id": "bsmu-dentistry",
+    "institutionID": "bsmu",
+    "name": "Стоматология",
+    "code": "",
+    "qualification": null,
+    "studyForms": ["Очная"],
+    "sourceURL": "https://www.bsmu.by/abiturientu/",
+    "lastVerifiedAt": "2026-10-17",
+    "isActive": true
+  },
+  {
+    "id": "grsu-software-engineering",
+    "institutionID": "grsu",
+    "name": "Программная инженерия",
+    "code": "",
+    "qualification": null,
+    "studyForms": ["Очная"],
+    "sourceURL": "https://abit.grsu.by/",
+    "lastVerifiedAt": "2026-10-17",
+    "isActive": true
+  },
+  {
+    "id": "polessu-finance",
+    "institutionID": "polessu",
+    "name": "Финансы и кредит",
+    "code": "",
+    "qualification": null,
+    "studyForms": ["Очная", "Заочная"],
+    "sourceURL": "https://www.polessu.by/abiturientam/",
+    "lastVerifiedAt": "2026-10-17",
+    "isActive": true
+  }
+]

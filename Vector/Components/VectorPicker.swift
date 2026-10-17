@@ -1,29 +1,20 @@
 import SwiftUI
 
-struct VectorPickerOption: Identifiable, Hashable {
+struct VectorPickerOption: Identifiable, Equatable {
     let id: String
     let title: String
 }
 
 struct VectorPicker: View {
     let title: String
-    let icon: String
+    let icon: String?
     let options: [VectorPickerOption]
     @Binding var selection: String
-    let errorMessage: String?
+    var isDisabled = false
+    var errorMessage: String?
 
-    init(
-        title: String,
-        icon: String,
-        options: [VectorPickerOption],
-        selection: Binding<String>,
-        errorMessage: String? = nil
-    ) {
-        self.title = title
-        self.icon = icon
-        self.options = options
-        self._selection = selection
-        self.errorMessage = errorMessage
+    private var selectedTitle: String {
+        options.first { $0.id == selection }?.title ?? title
     }
 
     var body: some View {
@@ -35,26 +26,29 @@ struct VectorPicker: View {
                     }
                 }
             } label: {
-                HStack(spacing: 14) {
-                    Image(systemName: icon)
-                        .foregroundStyle(.systemBlue01)
-
-                    Text(selectedTitle ?? title)
-                        .foregroundStyle(selectedTitle == nil ? .secondary : .systemDarkBlue)
-
+                HStack(spacing: 12) {
+                    if let icon {
+                        Image(systemName: icon)
+                            .foregroundStyle(.systemBlue01)
+                    }
+                    Text(selectedTitle)
+                        .foregroundStyle(selection.isEmpty ? .systemDarkBlue.opacity(0.45) : .systemDarkBlue)
                     Spacer()
-
                     Image(systemName: "chevron.down")
-                        .foregroundStyle(.secondary)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.systemDarkBlue.opacity(0.45))
                 }
+                .font(.body)
                 .padding(.horizontal, 18)
-                .frame(maxWidth: .infinity, minHeight: 60)
-                .background(.systemWhite, in: RoundedRectangle(cornerRadius: 18))
+                .frame(minHeight: 60)
+                .background(.systemWhite)
+                .clipShape(RoundedRectangle(cornerRadius: 18))
                 .overlay {
                     RoundedRectangle(cornerRadius: 18)
                         .stroke(errorMessage == nil ? .systemGrey1 : .red, lineWidth: 1)
                 }
             }
+            .disabled(isDisabled)
 
             if let errorMessage {
                 Text(errorMessage)
@@ -63,9 +57,15 @@ struct VectorPicker: View {
                     .padding(.leading, 8)
             }
         }
+        .opacity(isDisabled ? 0.55 : 1)
     }
+}
 
-    private var selectedTitle: String? {
-        options.first { $0.id == selection }?.title
-    }
+#Preview {
+    VectorPicker(
+        title: "Выберите",
+        icon: "location",
+        options: [VectorPickerOption(id: "1", title: "Вариант")],
+        selection: .constant("")
+    )
 }

@@ -1,372 +1,286 @@
-//
-//  LoginView.swift
-//  Vector
-//
-//  Created by Avelina Maksimchik on 18.08.2026.
-//
-
 import SwiftUI
 
 struct LoginView: View {
-    
+    let session: AppSession
+
     @State private var selectedTab = 0
-    @State private var userName: String = ""
-    @State private var userEmail: String = ""
-    @State private var userPassword: String = ""
-    @State private var showHome = false
-    @State private var createProfile = false
-    
+    @State private var email = ""
+    @State private var password = ""
+    @State private var isWorking = false
+    @State private var resetMessage: String?
+
     var body: some View {
         NavigationStack {
-            
-            
             ScrollView {
-                
-
-                
                 VStack(alignment: .leading, spacing: 18) {
-                    
-                    Spacer()
-                    
-                    // Заголовки
+                    LoginHeader(isRegistration: selectedTab == 1)
+                    LoginModePicker(selectedTab: $selectedTab)
+
+                    VectorTextField(
+                        icon: "envelope",
+                        placeholder: "Email",
+                        text: $email
+                    )
+                    .textInputAutocapitalization(.never)
+
+                    VectorTextField(
+                        icon: "lock",
+                        placeholder: "Пароль",
+                        isSecure: true,
+                        text: $password
+                    )
+
+                    if let message = session.errorMessage {
+                        Text(message)
+                            .font(.caption)
+                            .foregroundStyle(message.contains("отправлено") ? .green : .red)
+                    }
+
                     if selectedTab == 0 {
-                        Text("С возвращением")
-                            .font(.system(size: 30, weight: .semibold))
-                            .foregroundStyle(.systemDarkBlue)
-                    } else {
-                        Text("Добро пожаловать в Vector")
-                            .font(.system(size: 30, weight: .semibold))
-                            .foregroundStyle(.systemDarkBlue)
+                        Button("Забыли пароль?") {
+                            Task { await resetPassword() }
+                        }
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.systemBlue01)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                     }
-                    
-                    Text("Единая цифровая платформа поступления")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(.systemDarkBlue.opacity(0.5))
-                    
-                    Spacer()
-                    
-                    // Переключатель Вход/Регистрация
-                    VStack(spacing: 20) {
-                        HStack {
-                            Button {
-                                selectedTab = 0
-                            } label: {
-                                Text("Вход")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(selectedTab == 0 ? Color(.systemWhite) : Color(.systemGrey1))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(selectedTab == 0 ? Color(.systemBlue01) : Color.clear)
-                                    .cornerRadius(15)
-                            }
-                            
-                            Button {
-                                selectedTab = 1
-                            } label: {
-                                Text("Регистрация")
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .foregroundColor(selectedTab == 1 ? Color(.systemWhite) : Color(.systemGrey1))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(selectedTab == 1 ? Color(.systemBlue01) : Color.clear)
-                                    .cornerRadius(15)
-                            }
-                        }
-                        .padding(6)
-                        .background(.systemWhite)
-                        .cornerRadius(20)
-                        .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 5)
-                        .animation(.easeInOut(duration: 0.3), value: selectedTab)
+
+                    VectorButton(
+                        title: selectedTab == 0 ? "Войти" : "Создать аккаунт",
+                        icon: "arrow.forward",
+                        backgroundColor: .blue01,
+                        isInfinity: true
+                    ) {
+                        Task { await submit() }
                     }
-                    .padding(.bottom, 10)
-                    
-                    if selectedTab == 0 {
-                        // Поля входа
-                        VectorTextField(icon: "envelope",
-                                      iconColor: .grey01,
-                                      iconSize: 18,
-                                      placeholder: "Email или телефон",
-                                      borderColor: .grey01,
-                                      backgroundColor: .white,
-                                      isSecure: false,
-                                      text: $userEmail)
-                        
-                        VectorTextField(icon: "lock",
-                                      iconColor: .grey01,
-                                      iconSize: 18,
-                                      placeholder: "Пароль",
-                                      borderColor: .grey01,
-                                      backgroundColor: .white,
-                                      isSecure: true,
-                                      text: $userPassword)
-                        
-                        HStack {
-                            Spacer()
-                            Button {} label: {
-                                Text("Забыли пароль?")
-                                    .foregroundColor(.systemBlue01)
-                                    .font(.system(size: 16, weight: .semibold))
-                            }
-                            .padding(.top, 5)
-                        }
-                        
-                        VectorButton(title: "Войти", icon: "arrow.forward", backgroundColor: .blue01, isInfinity: true) {
-                            showHome = true
-                        }
-                        
+                    .disabled(isWorking || email.isEmpty || password.isEmpty)
+                    .opacity(isWorking || email.isEmpty || password.isEmpty ? 0.6 : 1)
 
-                        
-                        HStack {
-                            Rectangle()
-                                .fill(.systemGrey1.opacity(0.5))
-                                .frame(width: .infinity, height: 1)
-                            
-                            Text("ИЛИ")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(.systemGrey1)
-                            
-                            Rectangle()
-                                .fill(.systemGrey1.opacity(0.5))
-                                .frame(width: .infinity, height: 1)
-                        }
-                        
-                        Button{}
-                        label: {
-                            HStack(spacing: 10){
-                                Image("Google")
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 20, height: 20)
-                                    .padding(.leading, 20)
-                                
-                                Spacer()
-                                
-                                HStack {
-                                    
-                                    Text("Продолжить с Google")
-                                        .foregroundColor(.systemDarkBlue)
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .frame(width: 280, alignment: .leading)
-                                        
-                                    
-                                }
-                            }
+                    if isWorking {
+                        ProgressView()
+                            .tint(.systemBlue01)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 45)
-                            .background(Color(.systemWhite))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .overlay(RoundedRectangle(cornerRadius: 16)
-                                .stroke(.systemGrey1.opacity(0.5), lineWidth: 1))
-                            
-                            
-                            
-                        } .padding(.bottom, 10)
-                        
-                        
-                        Button{}
-                        label: {
-                            HStack(spacing: 10){
-                                Image("Apple")
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 20, height: 20)
-                                    .padding(.leading, 20)
-                                
-                                Spacer()
-                                
-                                HStack {
-                                    
-                                    Text("Продолжить с Apple")
-                                        .foregroundColor(.systemDarkBlue)
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .frame(width: 280, alignment: .leading)
-                                        
-                                    
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 45)
-                            .background(Color(.systemWhite))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .overlay(RoundedRectangle(cornerRadius: 16)
-                                .stroke(.systemGrey1.opacity(0.5), lineWidth: 1))
-                            
-                            
-                            
-                        } .padding(.bottom, 10)
-                        
-                        
-                        
-                        HStack {
-                            Spacer()
-                            Text("Нет аккаунта?")
-                                .foregroundColor(.systemGrey1)
-                            Button {selectedTab = 1} label: {
-                                Text("Зарегистрироваться")
-                                    .foregroundColor(.systemBlue01)
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 5)
-                            }
-                            
-                            
-                            
-
-                            
-                            Spacer()
-                            
-                            
-                            
-                        }
-                        .padding(.top, 5)
-
-                    } else {
-                        // Поля регистрации
-                        
-                        VectorTextField(icon: "envelope",
-                                      iconColor: .grey01,
-                                      iconSize: 18,
-                                      placeholder: "Email или телефон",
-                                      borderColor: .grey01,
-                                      backgroundColor: .white,
-                                      isSecure: false,
-                                      text: $userEmail)
-                        
-                        VectorTextField(icon: "lock",
-                                      iconColor: .grey01,
-                                      iconSize: 18,
-                                      placeholder: "Пароль",
-                                      borderColor: .grey01,
-                                      backgroundColor: .white,
-                                      isSecure: true,
-                                      text: $userPassword)
-                        
-                        VectorButton(title: "Зарегистрироваться", icon: "arrow.forward", backgroundColor: .blue01, isInfinity: true) {
-                            createProfile = true
-                        }
-                        
-                        HStack {
-                            Rectangle()
-                                .fill(.systemGrey1.opacity(0.5))
-                                .frame(width: .infinity, height: 1)
-                            
-                            Text("ИЛИ")
-                                .font(.system(size: 14, weight: .bold))
-                                .foregroundStyle(.systemGrey1)
-                            
-                            Rectangle()
-                                .fill(.systemGrey1.opacity(0.5))
-                                .frame(width: .infinity, height: 1)
-                        }
-                        
-                        Button{}
-                        label: {
-                            HStack(spacing: 10){
-                                Image("Google")
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 20, height: 20)
-                                    .padding(.leading, 20)
-                                
-                                Spacer()
-                                
-                                HStack {
-                                    
-                                    Text("Продолжить с Google")
-                                        .foregroundColor(.systemDarkBlue)
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .frame(width: 280, alignment: .leading)
-                                        
-                                    
-                                }
-                            }
-                            
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 45)
-                            .background(Color(.systemWhite))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .overlay(RoundedRectangle(cornerRadius: 16)
-                                .stroke(.systemGrey1.opacity(0.5), lineWidth: 1))
-                            
-                            
-                            
-                            
-                        }
-                        .padding(.bottom, 10)
-                        
-                        
-                        Button{}
-                        label: {
-                            HStack(spacing: 10){
-                                Image("Apple")
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 20, height: 20)
-                                    .padding(.leading, 20)
-                                
-                                Spacer()
-                                
-                                HStack {
-                                    
-                                    Text("Продолжить с Apple")
-                                        .foregroundColor(.systemDarkBlue)
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .frame(width: 280, alignment: .leading)
-                                        
-                                    
-                                }
-                            }
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 45)
-                            .background(Color(.systemWhite))
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                            .overlay(RoundedRectangle(cornerRadius: 16)
-                                .stroke(.systemGrey1.opacity(0.5), lineWidth: 1))
-                            
-                            
-                            
-                        } .padding(.bottom, 10)
-                        
-                        
-                        HStack {
-                            Spacer()
-                            Text("Уже с нами?")
-                                .foregroundColor(.systemGrey1)
-                            Button {selectedTab = 0} label: {
-                                Text("Войти")
-                                    .foregroundColor(.systemBlue01)
-                                    .font(.system(size: 16, weight: .semibold))
-                                    .shadow(color: .black.opacity(0.25), radius: 4, x: 0, y: 5)
-                                    
-                            }
-                            
-                            
-                            Spacer()
-                        }
-                        .padding(.top, 5)
-                        
-
                     }
-                    
-                    Spacer()
+
+                    LoginDivider()
+
+                    SocialSignInSection(
+                        isRegistration: selectedTab == 1,
+                        onGoogle: { showUnavailableProvider("Google") },
+                        onApple: { showUnavailableProvider("Apple") }
+                    )
+
+                    LoginAccountPrompt(
+                        isRegistration: selectedTab == 1,
+                        onSwitchMode: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                selectedTab = selectedTab == 0 ? 1 : 0
+                            }
+                        }
+                    )
+
+                    LoginInformationCard(isRegistration: selectedTab == 1)
                 }
                 .padding(.horizontal, 20)
-                .padding(.vertical, 20)
-                
-                
-            }.navigationDestination(isPresented: $createProfile){
-                CreateProfileView()
-                    .navigationBarBackButtonHidden(true)
+                .padding(.vertical, 28)
             }
-            .navigationDestination(isPresented: $showHome) {
-               MainTabView()
-                    .navigationBarBackButtonHidden(true)
-            }
-            
+            .scrollDismissesKeyboard(.interactively)
+            .background(.systemWhite)
         }
-        
+    }
+
+    private func submit() async {
+        guard !isWorking else { return }
+        isWorking = true
+        defer { isWorking = false }
+
+        if selectedTab == 0 {
+            await session.signIn(email: email, password: password)
+        } else {
+            await session.register(email: email, password: password)
+        }
+    }
+
+    private func resetPassword() async {
+        guard !email.isEmpty else {
+            session.errorMessage = "Сначала введите email."
+            return
+        }
+        await session.sendPasswordReset(email: email)
+    }
+
+    private func showUnavailableProvider(_ provider: String) {
+        session.errorMessage = "Вход через \(provider) пока не подключён в Firebase."
+    }
+}
+
+struct LoginHeader: View {
+    let isRegistration: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(isRegistration ? "Добро пожаловать в Vector" : "С возвращением")
+                .font(.largeTitle.weight(.semibold))
+                .foregroundStyle(.systemDarkBlue)
+            Text("Единая цифровая платформа поступления")
+                .font(.title3.weight(.medium))
+                .foregroundStyle(.systemDarkBlue.opacity(0.5))
+        }
+        .padding(.top, 20)
+    }
+}
+
+struct LoginModePicker: View {
+    @Binding var selectedTab: Int
+
+    var body: some View {
+        HStack(spacing: 4) {
+            LoginModeButton(title: "Вход", tag: 0, selectedTab: $selectedTab)
+            LoginModeButton(title: "Регистрация", tag: 1, selectedTab: $selectedTab)
+        }
+        .padding(6)
+        .background(.systemWhite, in: RoundedRectangle(cornerRadius: 20))
+        .shadow(color: .black.opacity(0.14), radius: 8, y: 4)
+        .animation(.easeInOut(duration: 0.2), value: selectedTab)
+        .padding(.vertical, 10)
+    }
+}
+
+struct LoginModeButton: View {
+    let title: String
+    let tag: Int
+    @Binding var selectedTab: Int
+
+    var body: some View {
+        Button(title) {
+            selectedTab = tag
+        }
+        .font(.body.weight(.semibold))
+        .foregroundStyle(selectedTab == tag ? .white : .systemGrey1)
+        .frame(maxWidth: .infinity, minHeight: 44)
+        .background(
+            selectedTab == tag ? Color.systemBlue01 : Color.clear,
+            in: RoundedRectangle(cornerRadius: 15)
+        )
+    }
+}
+
+struct LoginDivider: View {
+    var body: some View {
+        HStack(spacing: 12) {
+            Rectangle()
+                .fill(.systemGrey1.opacity(0.45))
+                .frame(height: 1)
+            Text("ИЛИ")
+                .font(.caption.weight(.bold))
+                .foregroundStyle(.systemGrey1)
+            Rectangle()
+                .fill(.systemGrey1.opacity(0.45))
+                .frame(height: 1)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+struct SocialSignInSection: View {
+    let isRegistration: Bool
+    let onGoogle: () -> Void
+    let onApple: () -> Void
+
+    var body: some View {
+        VStack(spacing: 16) {
+            SocialSignInButton(
+                title: isRegistration ? "Зарегистрироваться через Google" : "Войти через Google",
+                imageName: "Google",
+                action: onGoogle
+            )
+            SocialSignInButton(
+                title: isRegistration ? "Зарегистрироваться через Apple" : "Войти через Apple",
+                imageName: "Apple",
+                action: onApple
+            )
+        }
+    }
+}
+
+struct SocialSignInButton: View {
+    let title: LocalizedStringResource
+    let imageName: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                Image(imageName)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 24, height: 24)
+                    .accessibilityHidden(true)
+
+                Spacer()
+
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(.systemDarkBlue)
+                    .multilineTextAlignment(.center)
+
+                Spacer()
+
+                Color.clear
+                    .frame(width: 24, height: 24)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 22)
+            .frame(maxWidth: .infinity, minHeight: 60)
+            .background(.systemWhite, in: RoundedRectangle(cornerRadius: 18))
+            .overlay {
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(.systemGrey1.opacity(0.5), lineWidth: 1)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+struct LoginAccountPrompt: View {
+    let isRegistration: Bool
+    let onSwitchMode: () -> Void
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Text(isRegistration ? "Уже есть аккаунт?" : "Нет аккаунта?")
+                .foregroundStyle(.systemGrey1)
+            Button(
+                isRegistration ? "Войти" : "Зарегистрироваться",
+                action: onSwitchMode
+            )
+            .fontWeight(.semibold)
+            .foregroundStyle(.systemBlue01)
+        }
+        .font(.body)
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 14)
+    }
+}
+
+struct LoginInformationCard: View {
+    let isRegistration: Bool
+
+    var body: some View {
+        Label(
+            isRegistration
+                ? "После создания аккаунта профиль можно заполнить сразу или позже."
+                : "Войдите как абитуриент или администратор с помощью Firebase-аккаунта.",
+            systemImage: isRegistration ? "person.crop.circle.badge.plus" : "lock.shield"
+        )
+        .font(.subheadline)
+        .foregroundStyle(.systemDarkBlue.opacity(0.7))
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.systemBlue01.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
     }
 }
 
 #Preview {
-    LoginView()
+    LoginView(session: AppSession())
 }

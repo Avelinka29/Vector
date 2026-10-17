@@ -2,9 +2,10 @@ import SwiftUI
 
 struct NewApplicationView: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var catalog = SpecialtiesViewModel()
     @State private var institutionType = "university"
-    @State private var institutionName = ""
-    @State private var specialtyName = ""
+    @State private var institutionID: String?
+    @State private var specialtyID: String?
     @State private var studyForm = "fullTime"
 
     var body: some View {
@@ -20,11 +21,26 @@ struct NewApplicationView: View {
             }
 
             Section("Учебное заведение") {
-                TextField("Выберите учреждение", text: $institutionName)
+                Picker("Выберите учреждение", selection: $institutionID) {
+                    Text("Не выбрано").tag(String?.none)
+                    ForEach(
+                        catalog.institutions.filter { $0.type == institutionType }
+                    ) { institution in
+                        Text(institution.name).tag(Optional(institution.id))
+                    }
+                }
             }
 
             Section("Специальность") {
-                TextField("Выберите специальность", text: $specialtyName)
+                Picker("Выберите специальность", selection: $specialtyID) {
+                    Text("Не выбрано").tag(String?.none)
+                    ForEach(
+                        catalog.specialties.filter { $0.institutionID == institutionID }
+                    ) { specialty in
+                        Text(specialty.name).tag(Optional(specialty.id))
+                    }
+                }
+                .disabled(institutionID == nil)
             }
 
             Section("Форма обучения") {
@@ -37,13 +53,21 @@ struct NewApplicationView: View {
             Section {
                 Button("Продолжить") {}
                     .frame(maxWidth: .infinity)
-                    .disabled(institutionName.isEmpty || specialtyName.isEmpty)
+                    .disabled(institutionID == nil || specialtyID == nil)
             } footer: {
                 Text("Отправка заявлений станет доступна после подключения приёмных кампаний.")
             }
         }
         .navigationTitle("Новое заявление")
         .navigationBarTitleDisplayMode(.inline)
+        .task { await catalog.load() }
+        .onChange(of: institutionType) {
+            institutionID = nil
+            specialtyID = nil
+        }
+        .onChange(of: institutionID) {
+            specialtyID = nil
+        }
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
                 Button("Закрыть") { dismiss() }
