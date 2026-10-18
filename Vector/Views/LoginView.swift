@@ -7,7 +7,8 @@ struct LoginView: View {
     @State private var email = ""
     @State private var password = ""
     @State private var isWorking = false
-    @State private var resetMessage: String?
+    @State private var isSendingPasswordReset = false
+    @State private var passwordResetAlert: PasswordResetAlert?
 
     var body: some View {
         NavigationStack {
@@ -37,12 +38,13 @@ struct LoginView: View {
                     }
 
                     if selectedTab == 0 {
-                        Button("Забыли пароль?") {
+                        Button(isSendingPasswordReset ? "Отправляем…" : "Забыли пароль?") {
                             Task { await resetPassword() }
                         }
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.systemBlue01)
                         .frame(maxWidth: .infinity, alignment: .trailing)
+                        .disabled(isSendingPasswordReset)
                     }
 
                     VectorButton(
@@ -86,6 +88,13 @@ struct LoginView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .background(.systemWhite)
+            .alert(item: $passwordResetAlert) { alert in
+                Alert(
+                    title: Text(alert.title),
+                    message: Text(alert.message),
+                    dismissButton: .default(Text("Хорошо"))
+                )
+            }
         }
     }
 
@@ -102,15 +111,44 @@ struct LoginView: View {
     }
 
     private func resetPassword() async {
-        guard !email.isEmpty else {
-            session.errorMessage = "Сначала введите email."
+        guard !isSendingPasswordReset else { return }
+
+        let normalizedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedEmail.isEmpty else {
+            passwordResetAlert = .error("Сначала введите email, указанный при регистрации.")
             return
         }
-        await session.sendPasswordReset(email: email)
+
+        isSendingPasswordReset = true
+        defer { isSendingPasswordReset = false }
+
+        do {
+            try await session.sendPasswordReset(email: normalizedEmail)
+            passwordResetAlert = .success(email: normalizedEmail)
+        } catch {
+            passwordResetAlert = .error(error.localizedDescription)
+        }
     }
 
     private func showUnavailableProvider(_ provider: String) {
         session.errorMessage = "Вход через \(provider) пока не подключён в Firebase."
+    }
+}
+
+private struct PasswordResetAlert: Identifiable {
+    let id = UUID()
+    let title: String
+    let message: String
+
+    static func success(email: String) -> PasswordResetAlert {
+        PasswordResetAlert(
+            title: "Письмо отправлено",
+            message: "Мы отправили ссылку для сброса пароля на \(email). Проверьте также папку «Спам»."
+        )
+    }
+
+    static func error(_ message: String) -> PasswordResetAlert {
+        PasswordResetAlert(title: "Не удалось отправить письмо", message: message)
     }
 }
 
@@ -211,11 +249,19 @@ struct SocialSignInButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 12) {
-                Image(imageName)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 24, height: 24)
-                    .accessibilityHidden(true)
+                if imageName == "Apple" {
+                    Image(systemName: "apple.logo")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundStyle(.systemDarkBlue)
+                        .frame(width: 24, height: 24)
+                        .accessibilityHidden(true)
+                } else {
+                    Image(imageName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 24, height: 24)
+                        .accessibilityHidden(true)
+                }
 
                 Spacer()
 

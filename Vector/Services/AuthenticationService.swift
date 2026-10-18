@@ -14,6 +14,9 @@ enum AuthenticationError: LocalizedError {
     case missingEmail
     case weakPassword
     case invalidCredentials
+    case networkUnavailable
+    case tooManyRequests
+    case passwordResetFailed
     case unavailable
 
     var errorDescription: String? {
@@ -24,6 +27,12 @@ enum AuthenticationError: LocalizedError {
             "Пароль должен содержать не менее 6 символов."
         case .invalidCredentials:
             "Неверный email или пароль."
+        case .networkUnavailable:
+            "Нет подключения к интернету. Проверьте соединение и попробуйте снова."
+        case .tooManyRequests:
+            "Слишком много попыток. Подождите немного и попробуйте снова."
+        case .passwordResetFailed:
+            "Не удалось отправить письмо. Проверьте email и попробуйте снова."
         case .unavailable:
             "Не удалось выполнить авторизацию. Попробуйте ещё раз."
         }
@@ -63,7 +72,7 @@ final class FirebaseAuthenticationService: AuthenticationService {
         do {
             try await Auth.auth().sendPasswordReset(withEmail: email)
         } catch {
-            throw map(error)
+            throw mapPasswordReset(error)
         }
     }
 
@@ -93,6 +102,21 @@ final class FirebaseAuthenticationService: AuthenticationService {
             return AuthenticationError.invalidCredentials
         default:
             return error
+        }
+    }
+
+    private func mapPasswordReset(_ error: Error) -> Error {
+        let code = AuthErrorCode(rawValue: (error as NSError).code)
+
+        switch code {
+        case .invalidEmail:
+            return AuthenticationError.missingEmail
+        case .networkError:
+            return AuthenticationError.networkUnavailable
+        case .tooManyRequests:
+            return AuthenticationError.tooManyRequests
+        default:
+            return AuthenticationError.passwordResetFailed
         }
     }
 }

@@ -112,15 +112,10 @@ final class AppSession {
         }
     }
 
-    func sendPasswordReset(email: String) async {
-        do {
-            try await authentication.sendPasswordReset(
-                email: email.trimmingCharacters(in: .whitespacesAndNewlines)
-            )
-            errorMessage = "Письмо для сброса пароля отправлено."
-        } catch {
-            errorMessage = error.localizedDescription
-        }
+    func sendPasswordReset(email: String) async throws {
+        try await authentication.sendPasswordReset(
+            email: email.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
     }
 
     func profileRepository(for userID: String) -> any ProfileRepository {

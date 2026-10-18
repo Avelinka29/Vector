@@ -20,13 +20,13 @@ struct VectorButton: View {
         Button(action: action)
             {
                 Text(title)
-                    .foregroundColor(.systemWhite)
+                    .foregroundStyle(.white)
                     .font(.system(size: 18, weight: .medium))
                 
                 
                 if let icon {
                     Image(systemName: icon)
-                        .foregroundColor(.systemWhite)
+                        .foregroundStyle(.white)
                         .fontWeight(.medium)
                 }
             }
