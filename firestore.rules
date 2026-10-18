@@ -80,11 +80,20 @@ service cloud.firestore {
           "lastName",
           "firstName",
           "patronymic",
+          "lastNameLatin",
+          "firstNameLatin",
+          "patronymicLatin",
           "birthDate"
         ])
         && data.lastName is string
         && data.firstName is string
         && data.patronymic is string
+        && (!data.keys().hasAny(["lastNameLatin"])
+            || data.lastNameLatin is string)
+        && (!data.keys().hasAny(["firstNameLatin"])
+            || data.firstNameLatin is string)
+        && (!data.keys().hasAny(["patronymicLatin"])
+            || data.patronymicLatin is string)
         && (!data.keys().hasAny(["birthDate"])
             || data.birthDate is timestamp);
     }

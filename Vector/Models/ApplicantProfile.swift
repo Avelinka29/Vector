@@ -40,6 +40,9 @@ struct PersonalData: Codable, Equatable {
     var lastName = ""
     var firstName = ""
     var patronymic = ""
+    var lastNameLatin: String?
+    var firstNameLatin: String?
+    var patronymicLatin: String?
     var birthDate: Date?
 }
 

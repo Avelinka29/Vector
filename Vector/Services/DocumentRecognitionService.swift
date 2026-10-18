@@ -7,6 +7,9 @@ struct ExpectedDocumentData: Sendable {
     let firstName: String
     let lastName: String
     let patronymic: String
+    let firstNameLatin: String?
+    let lastNameLatin: String?
+    let patronymicLatin: String?
     let birthDate: Date?
     let passportNumber: String
 }
@@ -265,9 +268,13 @@ actor DocumentRecognitionService {
         checks: inout [String],
         warnings: inout [String]
     ) {
-        let requiredNames = [expected.lastName, expected.firstName]
-            .filter { !normalize($0).isEmpty }
-        let matchedCount = requiredNames.filter { nameMatches($0, in: text) }.count
+        let requiredNames = [
+            (expected.lastName, expected.lastNameLatin),
+            (expected.firstName, expected.firstNameLatin)
+        ]
+        let matchedCount = requiredNames.filter { cyrillic, latin in
+            nameMatches(cyrillic, latin: latin, in: text)
+        }.count
 
         if !requiredNames.isEmpty && matchedCount == requiredNames.count {
             checks.append("ФИО совпадает с профилем с учётом транслитерации")
@@ -276,9 +283,13 @@ actor DocumentRecognitionService {
         }
     }
 
-    private func nameMatches(_ name: String, in text: String) -> Bool {
+    private func nameMatches(_ name: String, latin: String?, in text: String) -> Bool {
         let compactText = normalizeCompact(text)
-        return nameVariants(for: name).contains { variant in
+        var variants = nameVariants(for: name)
+        if let latin, !normalize(latin).isEmpty {
+            variants.insert(normalize(latin))
+        }
+        return variants.contains { variant in
             let compactVariant = normalizeCompact(variant)
             return compactVariant.count >= 2 && compactText.contains(compactVariant)
         }

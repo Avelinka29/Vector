@@ -247,6 +247,9 @@ final class RegistrationViewModel {
                 firstName: profile.personal.firstName,
                 lastName: profile.personal.lastName,
                 patronymic: profile.personal.patronymic,
+                firstNameLatin: profile.personal.firstNameLatin,
+                lastNameLatin: profile.personal.lastNameLatin,
+                patronymicLatin: profile.personal.patronymicLatin,
                 birthDate: profile.personal.birthDate,
                 passportNumber: profile.passport.seriesAndNumber
             )
@@ -321,8 +324,35 @@ final class RegistrationViewModel {
     private func validatePersonal() {
         require(profile.personal.lastName, key: "lastName", message: "Укажите фамилию.")
         require(profile.personal.firstName, key: "firstName", message: "Укажите имя.")
+        requireLatinName(
+            profile.personal.lastNameLatin,
+            key: "lastNameLatin",
+            message: "Укажите фамилию латиницей как в паспорте."
+        )
+        requireLatinName(
+            profile.personal.firstNameLatin,
+            key: "firstNameLatin",
+            message: "Укажите имя латиницей как в паспорте."
+        )
+        if let patronymicLatin = profile.personal.patronymicLatin,
+           !patronymicLatin.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            requireLatinName(
+                patronymicLatin,
+                key: "patronymicLatin",
+                message: "Используйте для отчества только латинские буквы."
+            )
+        }
         if profile.personal.birthDate == nil {
             errors["birthDate"] = "Укажите дату рождения."
+        }
+    }
+
+    private func requireLatinName(_ value: String?, key: String, message: String) {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard !trimmed.isEmpty,
+              trimmed.range(of: "^[A-Za-z][A-Za-z '\\-]*$", options: .regularExpression) != nil else {
+            errors[key] = message
+            return
         }
     }
 

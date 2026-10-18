@@ -73,12 +73,44 @@ struct PersonalStepView: View {
                 icon: "person",
                 text: $model.profile.personal.patronymic
             )
+            Text("Латиницей — точно как указано в паспорте")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            VectorTextField2(
+                placeholder: "Фамилия латиницей",
+                icon: "character.book.closed",
+                text: latinBinding(\.lastNameLatin),
+                errorMessage: model.errors["lastNameLatin"],
+                capitalization: .characters
+            )
+            VectorTextField2(
+                placeholder: "Имя латиницей",
+                icon: "character.book.closed",
+                text: latinBinding(\.firstNameLatin),
+                errorMessage: model.errors["firstNameLatin"],
+                capitalization: .characters
+            )
+            VectorTextField2(
+                placeholder: "Отчество латиницей (если есть в паспорте)",
+                icon: "character.book.closed",
+                text: latinBinding(\.patronymicLatin),
+                errorMessage: model.errors["patronymicLatin"],
+                capitalization: .characters
+            )
             RegistrationDateField(
                 title: "Дата рождения",
                 date: $model.profile.personal.birthDate,
                 errorMessage: model.errors["birthDate"]
             )
         }
+    }
+
+    private func latinBinding(_ keyPath: WritableKeyPath<PersonalData, String?>) -> Binding<String> {
+        Binding(
+            get: { model.profile.personal[keyPath: keyPath] ?? "" },
+            set: { model.profile.personal[keyPath: keyPath] = $0.isEmpty ? nil : $0 }
+        )
     }
 }
 
