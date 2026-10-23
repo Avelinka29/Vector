@@ -169,10 +169,13 @@ struct RegistrationNavigationBar: View {
         .padding(.top, 10)
         .padding(.bottom, 8)
         .background(.systemWhite.shadow(.drop(color: .black.opacity(0.06), radius: 8, y: -3)))
+        .sensoryFeedback(.selection, trigger: model.currentStep)
     }
 }
 
 struct ProfileCreatedView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var didAppear = false
     let onContinue: () -> Void
 
     var body: some View {
@@ -185,12 +188,14 @@ struct ProfileCreatedView: View {
                 .frame(width: 132, height: 132)
                 .background(.systemBlue01, in: Circle())
                 .shadow(color: .systemBlue01.opacity(0.25), radius: 20, y: 10)
+                .scaleEffect(didAppear ? 1 : 0.55)
+                .opacity(didAppear ? 1 : 0)
 
             VStack(spacing: 10) {
                 Text("Профиль создан!")
                     .font(.largeTitle.bold())
                     .foregroundStyle(.systemDarkBlue)
-                Text("Данные сохранены на этом устройстве. Теперь можно перейти к возможностям Vector.")
+                Text("Анкета сохранена в вашем аккаунте. Фотографии документов остаются только на этом устройстве.")
                     .font(.body)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
@@ -206,6 +211,16 @@ struct ProfileCreatedView: View {
         }
         .padding(24)
         .background(.systemWhite)
+        .sensoryFeedback(.success, trigger: didAppear)
+        .onAppear {
+            if reduceMotion {
+                didAppear = true
+            } else {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.62)) {
+                    didAppear = true
+                }
+            }
+        }
     }
 }
 

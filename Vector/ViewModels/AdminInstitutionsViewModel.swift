@@ -6,12 +6,19 @@ import Observation
 final class AdminInstitutionsViewModel {
     var institutions: [InstitutionRecord] = []
     var isLoading = false
+    var isImportingCatalog = false
+    var importResultMessage: String?
     var errorMessage: String?
 
     private let repository: any InstitutionRepository
+    private let catalogImporter: CatalogImportService
 
-    init(repository: (any InstitutionRepository)? = nil) {
+    init(
+        repository: (any InstitutionRepository)? = nil,
+        catalogImporter: CatalogImportService? = nil
+    ) {
         self.repository = repository ?? FirestoreInstitutionRepository()
+        self.catalogImporter = catalogImporter ?? CatalogImportService()
     }
 
     func load() async {
@@ -22,7 +29,10 @@ final class AdminInstitutionsViewModel {
             institutions = try await repository.fetchInstitutions()
             errorMessage = nil
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFacingError.message(
+                for: error,
+                fallback: "Не удалось загрузить учебные заведения. Проверьте интернет-соединение."
+            )
         }
     }
 
@@ -32,8 +42,40 @@ final class AdminInstitutionsViewModel {
             await load()
             return true
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFacingError.message(
+                for: error,
+                fallback: "Не удалось сохранить учебное заведение. Попробуйте ещё раз."
+            )
             return false
+        }
+    }
+
+    func importCatalog(from url: URL) async {
+        guard !isImportingCatalog else { return }
+        isImportingCatalog = true
+        importResultMessage = nil
+        errorMessage = nil
+        defer { isImportingCatalog = false }
+
+        let hasSecurityAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if hasSecurityAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        do {
+            let data = try Data(contentsOf: url, options: .mappedIfSafe)
+            let report = try await catalogImporter.importData(data)
+            importResultMessage = """
+            Импорт завершён: \(report.importedInstitutionCount) учреждений,             \(report.importedSpecialtyCount) специальностей и             \(report.importedLinkCount) связей.             Дубликатов связей пропущено: \(report.skippedDuplicateLinkCount).
+            """
+            await load()
+        } catch {
+            errorMessage = UserFacingError.message(
+                for: error,
+                fallback: "Не удалось импортировать справочник. Проверьте доступ к файлу и повторите попытку."
+            )
         }
     }
 
@@ -42,7 +84,10 @@ final class AdminInstitutionsViewModel {
             try await repository.delete(id: id)
             institutions.removeAll { $0.id == id }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = UserFacingError.message(
+                for: error,
+                fallback: "Не удалось удалить учебное заведение. Попробуйте ещё раз."
+            )
         }
     }
 }

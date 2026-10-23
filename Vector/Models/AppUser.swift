@@ -2,6 +2,9 @@ import Foundation
 
 enum AppRole: String, Codable, Equatable {
     case applicant
+    case employer
+    case institution
+    case moderator
     case admin
 }
 

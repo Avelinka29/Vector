@@ -2,7 +2,7 @@ from fastapi import APIRouter
 
 from app.api.dependencies import CurrentUser, SessionDependency
 from app.models.profile import ApplicantProfile
-from app.schemas.profile import ProfileResponse, ProfileUpsert
+from app.schemas.profile import ProfileProgressUpdate, ProfileResponse, ProfileUpsert
 
 router = APIRouter(prefix="/profile", tags=["profile"])
 
@@ -23,6 +23,23 @@ async def save_profile(
     profile.schema_version = payload.schema_version
     profile.completion_percentage = payload.completion_percentage
     profile.data = payload.data
+    await session.commit()
+    await session.refresh(profile)
+    return profile
+
+
+@router.patch("/progress", response_model=ProfileResponse)
+async def update_profile_progress(
+    payload: ProfileProgressUpdate,
+    user: CurrentUser,
+    session: SessionDependency,
+) -> ApplicantProfile:
+    profile = await session.get(ApplicantProfile, user.id)
+    if profile is None:
+        profile = ApplicantProfile(user_id=user.id, current_step=payload.current_step)
+        session.add(profile)
+    else:
+        profile.current_step = payload.current_step
     await session.commit()
     await session.refresh(profile)
     return profile

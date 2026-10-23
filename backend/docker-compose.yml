@@ -1,10 +1,12 @@
+name: vector-backend
+
 services:
   adminer:
     image: adminer:5
     environment:
       ADMINER_DEFAULT_SERVER: postgres
     ports:
-      - "8081:8080"
+      - "8083:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -15,8 +17,15 @@ services:
       VECTOR_DATABASE_URL: postgresql+asyncpg://vector:vector@postgres:5432/vector
       VECTOR_JWT_SECRET: development-only-change-this-secret
       VECTOR_ALLOWED_ORIGINS: http://localhost:3000
+      VECTOR_WEB_APP_URL: ${VECTOR_WEB_APP_URL:-http://localhost:4173}
+      VECTOR_SMTP_HOST: ${VECTOR_SMTP_HOST:-}
+      VECTOR_SMTP_PORT: ${VECTOR_SMTP_PORT:-587}
+      VECTOR_SMTP_USERNAME: ${VECTOR_SMTP_USERNAME:-}
+      VECTOR_SMTP_PASSWORD: ${VECTOR_SMTP_PASSWORD:-}
+      VECTOR_SMTP_FROM_EMAIL: ${VECTOR_SMTP_FROM_EMAIL:-support@vector.by}
+      VECTOR_SMTP_USE_TLS: ${VECTOR_SMTP_USE_TLS:-true}
     ports:
-      - "8000:8000"
+      - "8002:8000"
     volumes:
       - ../institutions.seed.json:/data/institutions.seed.json:ro
       - ../specialties.seed.json:/data/specialties.seed.json:ro
@@ -31,7 +40,7 @@ services:
       POSTGRES_USER: vector
       POSTGRES_PASSWORD: vector
     ports:
-      - "5432:5432"
+      - "5434:5432"
     volumes:
       - vector_postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -42,3 +51,5 @@ services:
 
 volumes:
   vector_postgres_data:
+    name: backend_vector_postgres_data
+    external: true

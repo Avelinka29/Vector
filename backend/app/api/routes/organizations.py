@@ -2,12 +2,13 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query
-from sqlalchemy import select
+from sqlalchemy import or_, select
 
 from app.api.dependencies import AdminUser, CurrentUser, SessionDependency, StaffUser
 from app.models.enums import MembershipRole, UserRole, UserStatus, VerificationStatus
 from app.models.organization import Organization, OrganizationMembership
 from app.models.user import User
+from app.services.institution_email import queue_decision
 from app.schemas.organization import (
     OrganizationCreate,
     OrganizationResponse,
@@ -39,6 +40,18 @@ async def apply_for_organization(
 ) -> Organization:
     if user.role not in {UserRole.APPLICANT, UserRole.EMPLOYER, UserRole.INSTITUTION}:
         raise HTTPException(status_code=403, detail="Нельзя подать заявку с этой ролью")
+    existing_membership = await session.scalar(
+        select(OrganizationMembership.id).where(OrganizationMembership.user_id == user.id)
+    )
+    if existing_membership is not None:
+        raise HTTPException(status_code=409, detail="Заявка организации уже создана")
+    if payload.tax_id.strip():
+        existing_tax_id = await session.scalar(
+            select(Organization.id).where(Organization.tax_id == payload.tax_id.strip())
+        )
+        if existing_tax_id is not None:
+            raise HTTPException(status_code=409, detail="Организация с таким УНП уже существует")
+
     organization = build_organization(payload, user.id, verified=False)
     session.add(organization)
     await session.flush()
@@ -54,6 +67,24 @@ async def apply_for_organization(
     await session.commit()
     await session.refresh(organization)
     return organization
+
+
+@router.get("/mine", response_model=OrganizationResponse | None)
+async def my_organization(
+    user: CurrentUser,
+    session: SessionDependency,
+) -> Organization | None:
+    query = (
+        select(Organization)
+        .join(
+            OrganizationMembership,
+            OrganizationMembership.organization_id == Organization.id,
+        )
+        .where(OrganizationMembership.user_id == user.id)
+        .order_by(Organization.created_at.desc())
+        .limit(1)
+    )
+    return await session.scalar(query)
 
 
 @router.post("/admin", response_model=OrganizationResponse, status_code=201)
@@ -75,7 +106,9 @@ async def admin_list_organizations(
     session: SessionDependency,
     verification_status: Annotated[VerificationStatus | None, Query(alias="status")] = None,
 ) -> list[Organization]:
-    query = select(Organization).order_by(Organization.created_at.desc())
+    query = select(Organization).join(User, User.id == Organization.created_by_id).where(
+        or_(Organization.status != VerificationStatus.PENDING, User.email_verified.is_(True))
+    ).order_by(Organization.created_at.desc())
     if verification_status is not None:
         query = query.where(Organization.status == verification_status)
     return list((await session.scalars(query)).all())
@@ -85,13 +118,24 @@ async def admin_list_organizations(
 async def update_organization_status(
     organization_id: UUID,
     payload: OrganizationStatusUpdate,
-    staff: StaffUser,
+    staff: AdminUser,
     session: SessionDependency,
 ) -> Organization:
-    organization = await session.get(Organization, organization_id)
+    organization = await session.scalar(
+        select(Organization).where(Organization.id == organization_id).with_for_update()
+    )
     if organization is None:
         raise HTTPException(status_code=404, detail="Организация не найдена")
+    members = list((await session.scalars(select(User).join(
+        OrganizationMembership, OrganizationMembership.user_id == User.id
+    ).where(OrganizationMembership.organization_id == organization.id))).all())
+    if payload.status == VerificationStatus.ACTIVE and any(not m.email_verified for m in members):
+        raise HTTPException(status_code=409, detail="Сначала учреждение должно подтвердить email")
+    previous_status = organization.status
     organization.status = payload.status
+    if previous_status != payload.status:
+        for member in members:
+            queue_decision(session, member, organization, payload.status.value)
     if payload.status == VerificationStatus.ACTIVE:
         member_ids = await session.scalars(
             select(OrganizationMembership.user_id).where(
@@ -102,6 +146,9 @@ async def update_organization_status(
             member = await session.get(User, member_id)
             if member is not None:
                 member.status = UserStatus.ACTIVE
+    else:
+        for member in members:
+            member.status = UserStatus.PENDING
     await session.commit()
     await session.refresh(organization)
     return organization

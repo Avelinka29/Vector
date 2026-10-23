@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct RegistrationChoiceView: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var didAppear = false
     let email: String
     let onFillNow: () -> Void
     let onFillLater: () -> Void
@@ -12,6 +14,8 @@ struct RegistrationChoiceView: View {
             Image(systemName: "person.crop.circle.badge.checkmark")
                 .font(.system(size: 68))
                 .foregroundStyle(.systemBlue01)
+                .scaleEffect(didAppear ? 1 : 0.7)
+                .opacity(didAppear ? 1 : 0)
 
             VStack(spacing: 10) {
                 Text("Аккаунт создан")
@@ -36,12 +40,23 @@ struct RegistrationChoiceView: View {
                     .font(.headline)
                     .foregroundStyle(.systemBlue01)
                     .frame(maxWidth: .infinity, minHeight: 52)
+
             }
 
             Spacer()
         }
         .padding(24)
         .background(.systemWhite)
+        .sensoryFeedback(.success, trigger: didAppear)
+        .onAppear {
+            if reduceMotion {
+                didAppear = true
+            } else {
+                withAnimation(.spring(response: 0.5, dampingFraction: 0.65)) {
+                    didAppear = true
+                }
+            }
+        }
     }
 }
 
@@ -69,18 +84,22 @@ struct ApplicantRootView: View {
         self.profile = profile
         _currentProfile = State(initialValue: profile)
         _showProfileEditor = State(
-            initialValue: account.profileStatus == .inProgress && profile == nil
+            initialValue: account.profileStatus == .inProgress
         )
         _profileEditorStartStep = State(initialValue: account.currentProfileStep)
     }
 
     var body: some View {
         MainTabView(
+            userID: user.id,
             profile: currentProfile,
             profileStatus: account.profileStatus,
             onEditProfile: openProfileEditor,
             onEditDocuments: { openProfileEditor(startingAt: 7) },
-            onSignOut: { session.signOut() }
+            onSignOut: { session.signOut() },
+            onDeleteAccount: { password in
+                try await session.deleteAccount(userID: user.id, password: password)
+            }
         )
         .overlay {
             if isLoadingProfile {

@@ -8,6 +8,8 @@ final class AppSession {
         case loading
         case authentication
         case registrationChoice(AuthenticatedUser, AppUser)
+        case organizationApplication(AuthenticatedUser)
+        case organization(AuthenticatedUser, OrganizationRecord?)
         case applicant(AuthenticatedUser, AppUser, ApplicantProfile?)
         case admin(AuthenticatedUser)
     }
@@ -15,15 +17,26 @@ final class AppSession {
     var launchState: LaunchState = .loading
     var errorMessage: String?
 
+    var isAuthenticated: Bool {
+        switch launchState {
+        case .loading, .authentication:
+            false
+        case .registrationChoice, .organizationApplication, .organization, .applicant, .admin:
+            true
+        }
+    }
+
     private let authentication: any AuthenticationService
     private let accounts: any UserAccountRepository
+    private let accountDeletion = AccountDeletionService()
+    private let organizations = OrganizationService()
 
     init(
         authentication: (any AuthenticationService)? = nil,
         accounts: (any UserAccountRepository)? = nil
     ) {
-        self.authentication = authentication ?? FirebaseAuthenticationService()
-        self.accounts = accounts ?? FirestoreUserAccountRepository()
+        self.authentication = authentication ?? BackendAuthenticationService()
+        self.accounts = accounts ?? BackendUserAccountRepository()
     }
 
     func restore() async {
@@ -58,17 +71,29 @@ final class AppSession {
         }
     }
 
-    func register(email: String, password: String) async {
+    func register(email: String, password: String, role: AppRole) async {
         launchState = .loading
         errorMessage = nil
 
         do {
             let user = try await authentication.register(
                 email: email.trimmingCharacters(in: .whitespacesAndNewlines),
-                password: password
+                password: password,
+                role: role
             )
-            let account = try await accounts.createApplicant(id: user.id, email: user.email)
-            launchState = .registrationChoice(user, account)
+            Task {
+                await NotificationService.shared.syncTokenIfAvailable()
+            }
+
+            switch user.role {
+            case .applicant:
+                let account = try await accounts.createApplicant(id: user.id, email: user.email)
+                launchState = .registrationChoice(user, account)
+            case .employer, .institution:
+                launchState = .organizationApplication(user)
+            case .moderator, .admin:
+                throw AuthenticationError.unavailable
+            }
         } catch {
             try? authentication.signOut()
             errorMessage = error.localizedDescription
@@ -85,6 +110,34 @@ final class AppSession {
         guard case .registrationChoice(let user, var account) = launchState else { return }
         account.profileStatus = .inProgress
         launchState = .applicant(user, account, nil)
+    }
+
+    func startOrganizationApplication() {
+        guard case .registrationChoice(let user, _) = launchState else { return }
+        launchState = .organizationApplication(user)
+    }
+
+    func cancelOrganizationApplication() async {
+        guard case .organizationApplication(let user) = launchState else { return }
+        await routeAuthenticatedUser(user)
+    }
+
+    func submitOrganizationApplication(_ draft: OrganizationApplicationDraft) async throws {
+        guard case .organizationApplication(let user) = launchState else { return }
+        let organization = try await organizations.apply(draft)
+        let role: AppRole = draft.type == .institution ? .institution : .employer
+        let organizationUser = AuthenticatedUser(id: user.id, email: user.email, role: role)
+        launchState = .organization(organizationUser, organization)
+    }
+
+    func refreshOrganization() async {
+        guard case .organization(let user, _) = launchState else { return }
+        do {
+            let organization = try await organizations.loadMine()
+            launchState = .organization(user, organization)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     func profileDidSave(_ profile: ApplicantProfile) {
@@ -118,8 +171,18 @@ final class AppSession {
         )
     }
 
+    func deleteAccount(userID: String, password: String) async throws {
+        try await authentication.reauthenticate(password: password)
+        if authentication is FirebaseAuthenticationService {
+            try await accountDeletion.deleteData(userID: userID)
+        }
+        try await authentication.deleteCurrentUser()
+        errorMessage = nil
+        launchState = .authentication
+    }
+
     func profileRepository(for userID: String) -> any ProfileRepository {
-        FirestoreProfileRepository(userID: userID)
+        BackendProfileRepository()
     }
 
     func loadProfile(for userID: String) async throws -> ApplicantProfile? {
@@ -131,8 +194,23 @@ final class AppSession {
     }
 
     private func routeAuthenticatedUser(_ user: AuthenticatedUser) async {
-        if user.role == .admin {
+        Task {
+            await NotificationService.shared.syncTokenIfAvailable()
+        }
+
+        if user.role == .admin || user.role == .moderator {
             launchState = .admin(user)
+            return
+        }
+
+        if user.role == .employer || user.role == .institution {
+            do {
+                let organization = try await organizations.loadMine()
+                launchState = .organization(user, organization)
+            } catch {
+                errorMessage = error.localizedDescription
+                launchState = .authentication
+            }
             return
         }
 

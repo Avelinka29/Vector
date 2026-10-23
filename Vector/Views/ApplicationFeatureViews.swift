@@ -7,6 +7,24 @@ struct NewApplicationView: View {
     @State private var institutionID: String?
     @State private var specialtyID: String?
     @State private var studyForm = "fullTime"
+    @State private var fundingType = "budget"
+    @State private var isSubmitting = false
+    @State private var errorMessage: String?
+    @State private var didSubmit = false
+    let applicantID: String
+    let onSubmitted: () -> Void
+
+    init(
+        applicantID: String,
+        institutionID: String? = nil,
+        specialtyID: String? = nil,
+        onSubmitted: @escaping () -> Void = {}
+    ) {
+        self.applicantID = applicantID
+        self.onSubmitted = onSubmitted
+        _institutionID = State(initialValue: institutionID)
+        _specialtyID = State(initialValue: specialtyID)
+    }
 
     var body: some View {
         Form {
@@ -35,7 +53,11 @@ struct NewApplicationView: View {
                 Picker("Выберите специальность", selection: $specialtyID) {
                     Text("Не выбрано").tag(String?.none)
                     ForEach(
-                        catalog.specialties.filter { $0.institutionID == institutionID }
+                        catalog.specialties.filter { specialty in
+                            catalog.links.contains {
+                                $0.institutionID == institutionID && $0.specialtyID == specialty.id
+                            }
+                        }
                     ) { specialty in
                         Text(specialty.name).tag(Optional(specialty.id))
                     }
@@ -50,12 +72,32 @@ struct NewApplicationView: View {
                 }
             }
 
+            Section("Финансирование") {
+                Picker("Финансирование", selection: $fundingType) {
+                    Text("Бюджет").tag("budget")
+                    Text("Платное").tag("paid")
+                }
+                .pickerStyle(.segmented)
+            }
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
             Section {
-                Button("Продолжить") {}
+                Button {
+                    Task { await submit() }
+                } label: {
+                    if isSubmitting {
+                        ProgressView()
+                    } else {
+                        Text("Отправить заявление")
+                    }
+                }
                     .frame(maxWidth: .infinity)
-                    .disabled(institutionID == nil || specialtyID == nil)
-            } footer: {
-                Text("Отправка заявлений станет доступна после подключения приёмных кампаний.")
+                    .disabled(institutionID == nil || specialtyID == nil || applicantID.isEmpty || isSubmitting)
             }
         }
         .navigationTitle("Новое заявление")
@@ -73,17 +115,334 @@ struct NewApplicationView: View {
                 Button("Закрыть") { dismiss() }
             }
         }
+        .sensoryFeedback(.success, trigger: didSubmit)
+    }
+
+    private func submit() async {
+        guard
+            let institution = catalog.institutions.first(where: { $0.id == institutionID }),
+            let specialty = catalog.specialties.first(where: { $0.id == specialtyID })
+        else { return }
+
+        isSubmitting = true
+        errorMessage = nil
+        defer { isSubmitting = false }
+
+        do {
+            let model = ApplicationsViewModel(applicantID: applicantID)
+            try await model.create(
+                institution: institution,
+                specialty: specialty,
+                studyForm: studyForm,
+                fundingType: fundingType
+            )
+            didSubmit = true
+            onSubmitted()
+            dismiss()
+        } catch {
+            errorMessage = UserFacingError.message(
+                for: error,
+                fallback: "Не удалось отправить заявление. Попробуйте ещё раз."
+            )
+        }
+    }
+}
+
+struct ApplicationCard: View {
+    let application: ApplicationRecord
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 14) {
+                Image(systemName: "doc.text")
+                    .font(.title3)
+                    .foregroundStyle(.systemBlue01)
+                    .frame(width: 44, height: 44)
+                    .background(Color.systemBlue01.opacity(0.08), in: RoundedRectangle(cornerRadius: 13))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(application.institutionName)
+                        .font(.headline)
+                        .foregroundStyle(.systemDarkBlue)
+                    Text(application.specialtyName)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            HStack {
+                Text("\(fundingTitle) · \(studyFormTitle) · Приоритет \(application.priority)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(application.status.title)
+                    .font(.caption.bold())
+                    .foregroundStyle(statusColor)
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 7)
+                    .background(statusColor.opacity(0.1), in: Capsule())
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 18)
+                .fill(.systemWhite)
+                .stroke(Color.secondary.opacity(0.18), lineWidth: 1)
+        )
+    }
+
+    private var fundingTitle: String { application.fundingType == "budget" ? "Бюджет" : "Платное" }
+    private var studyFormTitle: String { application.studyForm == "fullTime" ? "Очная" : "Заочная" }
+    private var statusColor: Color {
+        switch application.status {
+        case .accepted: .green
+        case .rejected: .red
+        case .draft: .secondary
+        case .submitted, .documentsReview: .orange
+        }
+    }
+}
+
+struct ApplicationStatusView: View {
+    let application: ApplicationRecord
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Статус заявления")
+                        .font(.largeTitle.bold())
+                        .foregroundStyle(.systemDarkBlue)
+                    Text("№ \(application.id.prefix(10).uppercased()) · \(application.institutionName)")
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text(application.specialtyName.uppercased())
+                        .font(.caption)
+                    Text(application.status.title)
+                        .font(.title.bold())
+                    Text(statusDescription)
+                        .font(.subheadline)
+                    ProgressView(value: progress)
+                        .tint(.white)
+                }
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(22)
+                .background(.systemBlue01, in: RoundedRectangle(cornerRadius: 20))
+
+                Text("История заявления")
+                    .font(.title2.bold())
+                    .foregroundStyle(.systemDarkBlue)
+
+                VStack(spacing: 0) {
+                    ForEach(Array(application.history.enumerated()), id: \.element.id) { index, event in
+                        HStack(alignment: .top, spacing: 14) {
+                            VStack(spacing: 0) {
+                                Circle()
+                                    .fill(Color.systemBlue01)
+                                    .frame(width: 18, height: 18)
+                                if index < application.history.count - 1 {
+                                    Rectangle()
+                                        .fill(Color.systemBlue01.opacity(0.18))
+                                        .frame(width: 2, height: 54)
+                                }
+                            }
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(event.title)
+                                    .font(.headline)
+                                    .foregroundStyle(.systemDarkBlue)
+                                Text(event.createdAt.formatted(date: .abbreviated, time: .shortened))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                if let details = event.details {
+                                    Text(details).font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                        }
+                    }
+                }
+            }
+            .padding(24)
+        }
+        .background(.systemWhite)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var progress: Double {
+        switch application.status {
+        case .draft: 0.1
+        case .submitted: 0.35
+        case .documentsReview: 0.65
+        case .accepted, .rejected: 1
+        }
+    }
+
+    private var statusDescription: String {
+        switch application.status {
+        case .draft: "Завершите заполнение и отправьте заявление."
+        case .submitted: "Заявление передано на рассмотрение."
+        case .documentsReview: "Обычно проверка занимает до двух рабочих дней."
+        case .accepted: "Учреждение подтвердило ваше заявление."
+        case .rejected: "Откройте историю, чтобы узнать причину решения."
+        }
+    }
+}
+
+struct SpecialtyDetailsView: View {
+    let specialty: SpecialtyRecord
+    let institution: InstitutionRecord?
+    let applicantID: String
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("VECTOR / АБИТУРИЕНТ")
+                        .font(.caption.bold())
+                        .foregroundStyle(.systemBlue01)
+                    Text(specialty.name)
+                        .font(.largeTitle.bold())
+                        .foregroundStyle(.systemDarkBlue)
+                    Text(institution?.name ?? "Учреждение не указано")
+                        .foregroundStyle(.secondary)
+                }
+
+                if specialty.requiresVerification == true {
+                    Label("Сведения требуют проверки", systemImage: "exclamationmark.triangle")
+                        .font(.caption.bold())
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.1), in: Capsule())
+                }
+
+                HStack(spacing: 12) {
+                    SpecialtyMetric(value: specialty.code.isEmpty ? "—" : specialty.code, title: "Код")
+                    SpecialtyMetric(value: specialty.educationLevel ?? "—", title: "Уровень")
+                }
+
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("О программе")
+                        .font(.title2.bold())
+                        .foregroundStyle(.systemDarkBlue)
+                    if let qualification = specialty.qualification, !qualification.isEmpty {
+                        LabeledContent("Квалификация", value: qualification)
+                    }
+                    LabeledContent(
+                        "Формы обучения",
+                        value: specialty.studyForms.isEmpty ? "Не указаны" : specialty.studyForms.formatted()
+                    )
+                    if let verifiedAt = specialty.lastVerifiedAt {
+                        LabeledContent("Источник проверен", value: verifiedAt.formatted(date: .numeric, time: .omitted))
+                    }
+                }
+
+                if let url = URL(string: specialty.sourceURL), !specialty.sourceURL.isEmpty {
+                    Link(destination: url) {
+                        Label("Открыть официальный источник", systemImage: "arrow.up.right.square")
+                    }
+                }
+
+                if let institution, !applicantID.isEmpty {
+                    NavigationLink {
+                        NewApplicationView(
+                            applicantID: applicantID,
+                            institutionID: institution.id,
+                            specialtyID: specialty.id
+                        )
+                    } label: {
+                        HStack {
+                            Text("Подать заявление").font(.headline)
+                            Spacer()
+                            Image(systemName: "arrow.right")
+                        }
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20)
+                        .frame(maxWidth: .infinity, minHeight: 58)
+                        .background(.systemBlue01, in: RoundedRectangle(cornerRadius: 16))
+                    }
+                    .simultaneousGesture(TapGesture().onEnded { _ = institution })
+                }
+            }
+            .padding(24)
+        }
+        .background(.systemWhite)
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct SpecialtyMetric: View {
+    let value: String
+    let title: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(value).font(.headline).foregroundStyle(.systemDarkBlue).lineLimit(2)
+            Text(title).font(.caption).foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+        .padding(16)
+        .background(Color.systemGrey1.opacity(0.3), in: RoundedRectangle(cornerRadius: 16))
     }
 }
 
 struct PrioritiesView: View {
+    @State private var model: ApplicationsViewModel
+    @State private var isSaving = false
+    @State private var didSave = false
+
+    init(applicantID: String) {
+        _model = State(initialValue: ApplicationsViewModel(applicantID: applicantID))
+    }
+
     var body: some View {
-        ContentUnavailableView {
-            Label("Приоритеты не выбраны", systemImage: "list.number")
-        } description: {
-            Text("Здесь можно будет расставить отправленные заявления в порядке приоритета.")
+        Group {
+            if model.isLoading && model.applications.isEmpty {
+                ProgressView("Загрузка…")
+            } else if model.applications.isEmpty {
+                ContentUnavailableView {
+                    Label("Приоритеты не выбраны", systemImage: "list.number")
+                } description: {
+                    Text("Сначала отправьте хотя бы одно заявление.")
+                }
+            } else {
+                List {
+                    ForEach(model.applications) { application in
+                        HStack {
+                            Text("\(application.priority)")
+                                .font(.headline)
+                                .foregroundStyle(.systemBlue01)
+                                .frame(width: 28)
+                            VStack(alignment: .leading) {
+                                Text(application.specialtyName).font(.headline)
+                                Text(application.institutionName).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .onMove(perform: model.move)
+                }
+                .toolbar {
+                    EditButton()
+                    Button(isSaving ? "Сохранение…" : "Сохранить") {
+                        Task {
+                            isSaving = true
+                            defer { isSaving = false }
+                            do {
+                                try await model.savePriorities()
+                                didSave.toggle()
+                            } catch {
+                                model.errorMessage = "Не удалось сохранить приоритеты."
+                            }
+                        }
+                    }
+                    .disabled(isSaving)
+                }
+            }
         }
         .navigationTitle("Приоритеты")
+        .task { await model.load() }
+        .sensoryFeedback(.success, trigger: didSave)
     }
 }
 

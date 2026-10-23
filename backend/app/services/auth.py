@@ -76,7 +76,7 @@ async def rotate_refresh_token(session: AsyncSession, plain_token: str) -> Token
         select(RefreshToken).where(RefreshToken.digest == token_digest(plain_token))
     )
     now = datetime.now(UTC)
-    if stored is None or stored.revoked_at is not None or stored.expires_at <= now:
+    if stored is None or stored.revoked_at is not None or stored.expires_at.replace(tzinfo=UTC) <= now:
         raise HTTPException(status_code=401, detail="Сессия истекла")
     user = await session.get(User, stored.user_id)
     if user is None or user.status == UserStatus.BLOCKED:
@@ -99,6 +99,7 @@ async def create_action_token(
     user: User,
     purpose: ActionTokenPurpose,
     lifetime: timedelta,
+    commit: bool = True,
 ) -> str:
     plain_token = new_refresh_token()
     now = datetime.now(UTC)
@@ -111,7 +112,8 @@ async def create_action_token(
             expires_at=now + lifetime,
         )
     )
-    await session.commit()
+    if commit:
+        await session.commit()
     return plain_token
 
 
@@ -127,7 +129,7 @@ async def consume_action_token(
         )
     )
     now = datetime.now(UTC)
-    if stored is None or stored.used_at is not None or stored.expires_at <= now:
+    if stored is None or stored.used_at is not None or stored.expires_at.replace(tzinfo=UTC) <= now:
         raise HTTPException(status_code=400, detail="Ссылка недействительна или устарела")
     user = await session.get(User, stored.user_id)
     if user is None:

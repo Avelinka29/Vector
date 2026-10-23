@@ -5,9 +5,11 @@ import Foundation
 protocol AuthenticationService {
     func restoreUser() async throws -> AuthenticatedUser?
     func signIn(email: String, password: String) async throws -> AuthenticatedUser
-    func register(email: String, password: String) async throws -> AuthenticatedUser
+    func register(email: String, password: String, role: AppRole) async throws -> AuthenticatedUser
     func signOut() throws
     func sendPasswordReset(email: String) async throws
+    func reauthenticate(password: String) async throws
+    func deleteCurrentUser() async throws
 }
 
 enum AuthenticationError: LocalizedError {
@@ -24,7 +26,7 @@ enum AuthenticationError: LocalizedError {
         case .missingEmail:
             "Введите корректный email."
         case .weakPassword:
-            "Пароль должен содержать не менее 6 символов."
+            "Пароль должен содержать не менее 8 символов."
         case .invalidCredentials:
             "Неверный email или пароль."
         case .networkUnavailable:
@@ -55,7 +57,7 @@ final class FirebaseAuthenticationService: AuthenticationService {
         }
     }
 
-    func register(email: String, password: String) async throws -> AuthenticatedUser {
+    func register(email: String, password: String, role: AppRole) async throws -> AuthenticatedUser {
         do {
             let result = try await Auth.auth().createUser(withEmail: email, password: password)
             return try await authenticatedUser(from: result.user, forceRefresh: true)
@@ -74,6 +76,25 @@ final class FirebaseAuthenticationService: AuthenticationService {
         } catch {
             throw mapPasswordReset(error)
         }
+    }
+
+    func reauthenticate(password: String) async throws {
+        guard let user = Auth.auth().currentUser, let email = user.email else {
+            throw AuthenticationError.unavailable
+        }
+        do {
+            let credential = EmailAuthProvider.credential(withEmail: email, password: password)
+            try await user.reauthenticate(with: credential)
+        } catch {
+            throw map(error)
+        }
+    }
+
+    func deleteCurrentUser() async throws {
+        guard let user = Auth.auth().currentUser else {
+            throw AuthenticationError.unavailable
+        }
+        try await user.delete()
     }
 
     private func authenticatedUser(

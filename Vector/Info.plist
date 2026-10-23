@@ -13,5 +13,16 @@
 			</array>
 		</dict>
 	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
+	<key>VECTOR_API_BASE_URL</key>
+	<string>http://172.20.10.8:8002</string>
 </dict>
 </plist>

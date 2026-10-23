@@ -17,6 +17,7 @@ class ApplicantProfile(Base):
     )
     schema_version: Mapped[int] = mapped_column(Integer, default=1)
     completion_percentage: Mapped[int] = mapped_column(Integer, default=0)
+    current_step: Mapped[int] = mapped_column(Integer, default=1)
     data: Mapped[dict] = mapped_column(JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

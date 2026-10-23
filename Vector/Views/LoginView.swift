@@ -6,6 +6,7 @@ struct LoginView: View {
     @State private var selectedTab = 0
     @State private var email = ""
     @State private var password = ""
+    @State private var selectedRegistrationRole: AppRole = .applicant
     @State private var isWorking = false
     @State private var isSendingPasswordReset = false
     @State private var passwordResetAlert: PasswordResetAlert?
@@ -16,6 +17,10 @@ struct LoginView: View {
                 VStack(alignment: .leading, spacing: 18) {
                     LoginHeader(isRegistration: selectedTab == 1)
                     LoginModePicker(selectedTab: $selectedTab)
+
+                    if selectedTab == 1 {
+                        RegistrationRolePicker(selection: $selectedRegistrationRole)
+                    }
 
                     VectorTextField(
                         icon: "envelope",
@@ -106,7 +111,11 @@ struct LoginView: View {
         if selectedTab == 0 {
             await session.signIn(email: email, password: password)
         } else {
-            await session.register(email: email, password: password)
+            await session.register(
+                email: email,
+                password: password,
+                role: selectedRegistrationRole
+            )
         }
     }
 
@@ -131,8 +140,88 @@ struct LoginView: View {
     }
 
     private func showUnavailableProvider(_ provider: String) {
-        session.errorMessage = "Вход через \(provider) пока не подключён в Firebase."
+        session.errorMessage = "Вход через \(provider) временно недоступен."
     }
+}
+
+private struct RegistrationRolePicker: View {
+    @Binding var selection: AppRole
+
+    private let options = [
+        RegistrationRoleOption(
+            role: .applicant,
+            title: "Абитуриент",
+            subtitle: "Поступление и личный профиль",
+            icon: "person"
+        ),
+        RegistrationRoleOption(
+            role: .institution,
+            title: "Учреждение образования",
+            subtitle: "Программы и работа с абитуриентами",
+            icon: "building.columns"
+        ),
+        RegistrationRoleOption(
+            role: .employer,
+            title: "Работодатель",
+            subtitle: "Вакансии и поиск кандидатов",
+            icon: "briefcase"
+        )
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Кто вы?")
+                .font(.headline)
+                .foregroundStyle(.systemDarkBlue)
+
+            ForEach(options) { option in
+                Button {
+                    selection = option.role
+                } label: {
+                    HStack(spacing: 14) {
+                        Image(systemName: option.icon)
+                            .font(.title3)
+                            .frame(width: 28)
+                            .accessibilityHidden(true)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(option.title)
+                                .font(.body.weight(.semibold))
+                            Text(option.subtitle)
+                                .font(.caption)
+                                .foregroundStyle(selection == option.role ? .white.opacity(0.8) : .secondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: selection == option.role ? "checkmark.circle.fill" : "circle")
+                            .font(.title3)
+                            .accessibilityHidden(true)
+                    }
+                    .foregroundStyle(selection == option.role ? .white : .systemDarkBlue)
+                    .padding(14)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        selection == option.role ? Color.systemBlue01 : Color.systemBlue01.opacity(0.07),
+                        in: RoundedRectangle(cornerRadius: 16)
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(option.title)
+                .accessibilityValue(selection == option.role ? "Выбрано" : "Не выбрано")
+            }
+        }
+        .animation(.easeInOut(duration: 0.18), value: selection)
+    }
+}
+
+private struct RegistrationRoleOption: Identifiable {
+    let role: AppRole
+    let title: String
+    let subtitle: String
+    let icon: String
+
+    var id: String { role.rawValue }
 }
 
 private struct PasswordResetAlert: Identifiable {
@@ -315,8 +404,8 @@ struct LoginInformationCard: View {
     var body: some View {
         Label(
             isRegistration
-                ? "После создания аккаунта профиль можно заполнить сразу или позже."
-                : "Войдите как абитуриент или администратор с помощью Firebase-аккаунта.",
+                ? "Для учреждения или работодателя после регистрации потребуется заполнить заявку на проверку."
+                : "Войдите в аккаунт абитуриента, организации или администратора.",
             systemImage: isRegistration ? "person.crop.circle.badge.plus" : "lock.shield"
         )
         .font(.subheadline)

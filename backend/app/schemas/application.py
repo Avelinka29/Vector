@@ -20,6 +20,15 @@ class ApplicationPriorityUpdate(BaseModel):
     priority: int = Field(ge=1, le=20)
 
 
+class ApplicationPriorityItem(BaseModel):
+    id: UUID
+    priority: int = Field(ge=1, le=20)
+
+
+class ApplicationPrioritiesUpdate(BaseModel):
+    applications: list[ApplicationPriorityItem] = Field(min_length=1, max_length=20)
+
+
 class ApplicationStatusUpdate(BaseModel):
     status: ApplicationStatus
     comment: str | None = Field(default=None, max_length=2000)
@@ -41,3 +50,8 @@ class ApplicationResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class OrganizationApplicationResponse(ApplicationResponse):
+    applicant_email: str
+    applicant_profile: dict | None = None

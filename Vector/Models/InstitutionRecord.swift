@@ -6,6 +6,11 @@ struct InstitutionRecord: Codable, Equatable, Identifiable {
     var type: String
     var locality: String
     var regionID: String
+    var officialID: String?
+    var educationLevels: [String]?
+    var coverageStatus: String?
+    var identityStatus: String?
+    var requiresVerification: Bool?
     var address: String?
     var websiteURL: String?
     var admissionsPhone: String?
@@ -28,6 +33,11 @@ struct InstitutionRecord: Codable, Equatable, Identifiable {
         self.type = type
         self.locality = locality
         self.regionID = regionID
+        self.officialID = nil
+        self.educationLevels = nil
+        self.coverageStatus = nil
+        self.identityStatus = nil
+        self.requiresVerification = nil
         self.address = nil
         self.websiteURL = nil
         self.admissionsPhone = nil

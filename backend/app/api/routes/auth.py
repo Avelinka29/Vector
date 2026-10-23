@@ -43,12 +43,22 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def register(payload: RegisterRequest, session: SessionDependency) -> TokenResponse:
     if await find_user_by_email(session, payload.email):
         raise HTTPException(status_code=409, detail="Аккаунт с таким email уже существует")
+    if payload.role not in {
+        UserRole.APPLICANT,
+        UserRole.EMPLOYER,
+        UserRole.INSTITUTION,
+    }:
+        raise HTTPException(status_code=400, detail="Недопустимая роль для регистрации")
     user = User(
         email=normalized_email(payload.email),
         password_hash=hash_password(payload.password),
         full_name=payload.full_name.strip(),
-        role=UserRole.APPLICANT,
-        status=UserStatus.ACTIVE,
+        role=payload.role,
+        status=(
+            UserStatus.ACTIVE
+            if payload.role == UserRole.APPLICANT
+            else UserStatus.PENDING
+        ),
     )
     session.add(user)
     await session.flush()
@@ -99,6 +109,11 @@ async def request_email_verification(
 ) -> MessageResponse:
     if user.email_verified:
         return MessageResponse(message="Email уже подтверждён")
+    if user.role == UserRole.INSTITUTION:
+        from app.services.institution_email import queue_verification
+        await queue_verification(session, user)
+        await session.commit()
+        return MessageResponse(message="Письмо поставлено в очередь отправки")
     token = await create_action_token(
         session, user, ActionTokenPurpose.VERIFY_EMAIL, timedelta(hours=24)
     )

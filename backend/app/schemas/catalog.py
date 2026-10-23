@@ -1,6 +1,6 @@
 from datetime import date
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SpecialtyResponse(BaseModel):
@@ -8,12 +8,18 @@ class SpecialtyResponse(BaseModel):
     institution_id: str
     name: str
     code: str
+    education_level: str
     qualification: str
     study_forms: list[str]
     source_url: str
     last_verified_at: date | None
     needs_verification: bool
 
+    faculty: str = ""
+    duration: int | None = None
+    budget_places: int | None = None
+    paid_places: int | None = None
+    description: str = ""
     model_config = {"from_attributes": True}
 
 
@@ -32,4 +38,6 @@ class InstitutionResponse(BaseModel):
     last_verified_at: date | None
     needs_verification: bool
 
+    education_levels: list[str] = Field(default_factory=list)
+    description: str = ""
     model_config = {"from_attributes": True}

@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_from_email: str = "support@vector.by"
     smtp_use_tls: bool = True
+    web_app_url: str = "http://localhost:4173"
     public_app_url: str = "vector://auth"
 
     @field_validator("allowed_origins", mode="before")

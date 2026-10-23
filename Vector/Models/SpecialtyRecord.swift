@@ -6,9 +6,11 @@ struct SpecialtyRecord: Codable, Equatable, Identifiable {
     var name: String
     var code: String
     var qualification: String?
+    var educationLevel: String?
     var studyForms: [String]
     var sourceURL: String
     var lastVerifiedAt: Date?
+    var requiresVerification: Bool?
     var isActive: Bool
 
     init(
@@ -17,6 +19,7 @@ struct SpecialtyRecord: Codable, Equatable, Identifiable {
         name: String = "",
         code: String = "",
         qualification: String? = nil,
+        educationLevel: String? = nil,
         studyForms: [String] = [],
         sourceURL: String = "",
         lastVerifiedAt: Date? = nil,
@@ -27,9 +30,11 @@ struct SpecialtyRecord: Codable, Equatable, Identifiable {
         self.name = name
         self.code = code
         self.qualification = qualification
+        self.educationLevel = educationLevel
         self.studyForms = studyForms
         self.sourceURL = sourceURL
         self.lastVerifiedAt = lastVerifiedAt
+        self.requiresVerification = nil
         self.isActive = isActive
     }
 }

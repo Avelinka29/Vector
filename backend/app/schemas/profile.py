@@ -9,7 +9,12 @@ class ProfileUpsert(BaseModel):
     data: dict
 
 
+class ProfileProgressUpdate(BaseModel):
+    current_step: int = Field(ge=1, le=10)
+
+
 class ProfileResponse(ProfileUpsert):
+    current_step: int
     updated_at: datetime
 
     model_config = {"from_attributes": True}

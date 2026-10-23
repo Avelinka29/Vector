@@ -66,6 +66,15 @@ struct AddressData: Codable, Equatable {
     var street = ""
     var house = ""
     var apartment = ""
+
+    private enum CodingKeys: String, CodingKey {
+        case countryID = "countryId"
+        case regionID = "regionId"
+        case cityID = "cityId"
+        case street
+        case house
+        case apartment
+    }
 }
 
 enum EducationStatus: String, Codable, CaseIterable, Identifiable {

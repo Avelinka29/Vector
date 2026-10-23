@@ -8,10 +8,10 @@ final class AccountDeletionService {
 
     init(
         database: Firestore = Firestore.firestore(),
-        avatarStorage: any AvatarStorage = LocalAvatarStorage.shared
+        avatarStorage: (any AvatarStorage)? = nil
     ) {
         self.database = database
-        self.avatarStorage = avatarStorage
+        self.avatarStorage = avatarStorage ?? LocalAvatarStorage.shared
     }
 
     func deleteData(userID: String) async throws {
