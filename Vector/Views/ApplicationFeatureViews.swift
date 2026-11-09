@@ -1,4 +1,95 @@
+import Observation
 import SwiftUI
+import UniformTypeIdentifiers
+
+nonisolated private struct ServerApplicationDocument: Codable, Identifiable, Sendable {
+    let id: UUID
+    let applicationId: UUID
+    let kind: String
+    let originalName: String
+    let contentType: String
+    let sizeBytes: Int
+    let createdAt: Date
+}
+
+nonisolated private struct ServerApplicationComment: Codable, Identifiable, Sendable {
+    let id: UUID
+    let applicationId: UUID
+    let authorId: UUID
+    let text: String
+    let isInternal: Bool
+    let createdAt: Date
+}
+
+private actor ApplicationDetailsService {
+    private let api = BackendAPIClient.shared
+
+    func documents(applicationID: String) async throws -> [ServerApplicationDocument] {
+        try await api.request("/api/v1/applications/\(applicationID)/documents", authorized: true)
+    }
+
+    func comments(applicationID: String) async throws -> [ServerApplicationComment] {
+        try await api.request("/api/v1/applications/\(applicationID)/comments", authorized: true)
+    }
+
+    func addComment(applicationID: String, text: String) async throws -> ServerApplicationComment {
+        struct Body: Encodable, Sendable { let text: String; let isInternal = false }
+        return try await api.request(
+            "/api/v1/applications/\(applicationID)/comments",
+            method: "POST",
+            body: Body(text: text),
+            authorized: true
+        )
+    }
+
+    func upload(applicationID: String, data: Data, fileName: String, contentType: String) async throws -> ServerApplicationDocument {
+        try await api.upload(
+            "/api/v1/applications/\(applicationID)/documents",
+            fileData: data,
+            fileName: fileName,
+            contentType: contentType,
+            fields: ["kind": "application"]
+        )
+    }
+}
+
+@MainActor @Observable
+private final class ApplicationDetailsModel {
+    var documents: [ServerApplicationDocument] = []
+    var comments: [ServerApplicationComment] = []
+    var errorMessage: String?
+    var isWorking = false
+    private let service = ApplicationDetailsService()
+
+    func load(applicationID: String) async {
+        do {
+            async let documents = service.documents(applicationID: applicationID)
+            async let comments = service.comments(applicationID: applicationID)
+            (self.documents, self.comments) = try await (documents, comments)
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    func addComment(applicationID: String, text: String) async throws {
+        comments.append(try await service.addComment(applicationID: applicationID, text: text))
+    }
+
+    func upload(applicationID: String, url: URL) async {
+        isWorking = true
+        defer { isWorking = false }
+        let granted = url.startAccessingSecurityScopedResource()
+        defer { if granted { url.stopAccessingSecurityScopedResource() } }
+        do {
+            let data = try Data(contentsOf: url)
+            let type = UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "application/octet-stream"
+            documents.append(try await service.upload(
+                applicationID: applicationID,
+                data: data,
+                fileName: url.lastPathComponent,
+                contentType: type
+            ))
+        } catch { errorMessage = error.localizedDescription }
+    }
+}
 
 struct NewApplicationView: View {
     @Environment(\.dismiss) private var dismiss
@@ -203,6 +294,9 @@ struct ApplicationCard: View {
 
 struct ApplicationStatusView: View {
     let application: ApplicationRecord
+    @State private var details = ApplicationDetailsModel()
+    @State private var comment = ""
+    @State private var showsFileImporter = false
 
     var body: some View {
         ScrollView {
@@ -262,11 +356,66 @@ struct ApplicationStatusView: View {
                         }
                     }
                 }
+
+                if let deadline = application.submissionDeadline {
+                    Label("Предоставить документы до \(deadline)", systemImage: "calendar.badge.exclamationmark")
+                        .font(.headline)
+                        .foregroundStyle(.orange)
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Документы").font(.title2.bold())
+                        Spacer()
+                        Button("Добавить", systemImage: "paperclip") { showsFileImporter = true }
+                    }
+                    if details.documents.isEmpty {
+                        Text("Файлы ещё не загружены").foregroundStyle(.secondary)
+                    }
+                    ForEach(details.documents) { document in
+                        Label("\(document.originalName) · \(ByteCountFormatter.string(fromByteCount: Int64(document.sizeBytes), countStyle: .file))", systemImage: "doc")
+                            .font(.subheadline)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Комментарии").font(.title2.bold())
+                    ForEach(details.comments) { item in
+                        Text(item.text)
+                            .padding(12)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.systemBlue01.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                    }
+                    HStack {
+                        TextField("Написать комментарий", text: $comment, axis: .vertical)
+                        Button("Отправить") {
+                            let value = comment.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard !value.isEmpty else { return }
+                            Task {
+                                do { try await details.addComment(applicationID: application.id, text: value); comment = "" }
+                                catch { details.errorMessage = error.localizedDescription }
+                            }
+                        }
+                    }
+                }
+
+                if let error = details.errorMessage {
+                    Text(error).font(.caption).foregroundStyle(.red)
+                }
             }
             .padding(24)
         }
         .background(.systemWhite)
         .navigationBarTitleDisplayMode(.inline)
+        .task { await details.load(applicationID: application.id) }
+        .fileImporter(
+            isPresented: $showsFileImporter,
+            allowedContentTypes: [.pdf, .jpeg, .png, .heic],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            Task { await details.upload(applicationID: application.id, url: url) }
+        }
     }
 
     private var progress: Double {
@@ -458,12 +607,112 @@ struct AnalyticsView: View {
 }
 
 struct NotificationsView: View {
+    @State private var model = NotificationsModel()
+
     var body: some View {
-        ContentUnavailableView {
-            Label("Уведомлений пока нет", systemImage: "bell")
-        } description: {
-            Text("Здесь появятся изменения статусов заявлений и важные сообщения.")
+        Group {
+            if model.isLoading && model.items.isEmpty {
+                ProgressView("Загружаем уведомления…")
+            } else if model.items.isEmpty {
+                ContentUnavailableView {
+                    Label("Уведомлений пока нет", systemImage: "bell")
+                } description: {
+                    Text("Здесь появятся изменения статусов заявлений и важные сообщения.")
+                }
+            } else {
+                List(model.items) { item in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(item.title).font(.headline)
+                            Spacer()
+                            if !item.isRead {
+                                Circle().fill(Color.systemBlue01).frame(width: 8, height: 8)
+                            }
+                        }
+                        Text(item.body).font(.subheadline).foregroundStyle(.secondary)
+                        Text(item.createdAt.formatted(date: .abbreviated, time: .shortened))
+                            .font(.caption2).foregroundStyle(.tertiary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture { Task { await model.markRead(item) } }
+                }
+                .refreshable { await model.load() }
+            }
         }
         .navigationTitle("Уведомления")
+        .task { await model.load() }
+        .alert("Не удалось обновить уведомления", isPresented: Binding(
+            get: { model.errorMessage != nil },
+            set: { if !$0 { model.errorMessage = nil } }
+        )) {
+            Button("Закрыть", role: .cancel) { model.errorMessage = nil }
+        } message: {
+            Text(model.errorMessage ?? "")
+        }
+        .toolbar {
+            Button("Обновить", systemImage: "arrow.clockwise") {
+                Task { await model.load() }
+            }
+            .disabled(model.isLoading)
+            if model.items.contains(where: { !$0.isRead }) {
+                Button("Прочитать все") { Task { await model.markAllRead() } }
+            }
+        }
+    }
+}
+
+nonisolated private struct BackendNotification: Codable, Identifiable, Sendable {
+    let id: UUID
+    let title: String
+    let body: String
+    let eventType: String
+    let entityId: String
+    var isRead: Bool
+    let deliveredAt: Date?
+    let createdAt: Date
+}
+
+@MainActor @Observable
+private final class NotificationsModel {
+    var items: [BackendNotification] = []
+    var isLoading = false
+    var errorMessage: String?
+
+    func load() async {
+        guard !isLoading else { return }
+        errorMessage = nil
+        isLoading = true
+        defer { isLoading = false }
+        do {
+            items = try await BackendAPIClient.shared.request(
+                "/api/v1/notifications",
+                authorized: true
+            )
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func markRead(_ item: BackendNotification) async {
+        guard !item.isRead else { return }
+        do {
+            let updated: BackendNotification = try await BackendAPIClient.shared.request(
+                "/api/v1/notifications/\(item.id)/read",
+                method: "PATCH",
+                authorized: true
+            )
+            if let index = items.firstIndex(where: { $0.id == updated.id }) { items[index] = updated }
+        } catch { errorMessage = error.localizedDescription }
+    }
+
+    func markAllRead() async {
+        do {
+            let _: EmptyResponse = try await BackendAPIClient.shared.request(
+                "/api/v1/notifications/read-all",
+                method: "POST",
+                authorized: true
+            )
+            for index in items.indices { items[index].isRead = true }
+        } catch { errorMessage = error.localizedDescription }
     }
 }

@@ -69,6 +69,21 @@ final class BackendAuthenticationService: AuthenticationService {
         return authenticatedUser(from: response.user)
     }
 
+    func signInWithGoogle(idToken: String, role: AppRole, registering: Bool) async throws -> AuthenticatedUser {
+        nonisolated struct GoogleBody: Encodable, Sendable {
+            let idToken: String
+            let role: AppRole
+        }
+        let response: BackendTokenResponse = try await api.request(
+            registering ? "/api/v1/auth/google/register" : "/api/v1/auth/google",
+            method: "POST",
+            body: GoogleBody(idToken: idToken, role: role)
+        )
+        try await api.saveTokens(response)
+        currentEmail = response.user.email
+        return authenticatedUser(from: response.user)
+    }
+
     func signOut() throws {
         Task { await api.clearTokens() }
         currentEmail = nil
