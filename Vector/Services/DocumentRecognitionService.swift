@@ -152,7 +152,9 @@ actor DocumentRecognitionService {
                 confidence: averageOCRConfidence
             )
             return result(
-                likelyMatches: hasMinimumResolution && hasPassportWords && faceCount > 0,
+                likelyMatches: hasMinimumResolution && hasPassportWords && faceCount > 0
+                    && nameMatches(expected.firstName, latin: expected.firstNameLatin, in: text)
+                    && nameMatches(expected.lastName, latin: expected.lastNameLatin, in: text),
                 confidence: score,
                 checks: checks,
                 warnings: warnings
