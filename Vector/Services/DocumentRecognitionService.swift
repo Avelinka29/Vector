@@ -1,5 +1,6 @@
 import Foundation
 import ImageIO
+import OSLog
 import UIKit
 @preconcurrency import Vision
 
@@ -61,9 +62,22 @@ actor DocumentRecognitionService {
             options: [:]
         )
 
+        // Only request evidence relevant to this document. A face-detection failure
+        // must not prevent recognizing an education certificate.
+        var requests: [VNRequest] = []
+        if kind != .portrait {
+            requests.append(textRequest)
+        }
+        if kind == .passport || kind == .portrait {
+            requests.append(faceRequest)
+        }
+
         do {
-            try handler.perform([textRequest, faceRequest])
+            try handler.perform(requests)
         } catch {
+            let failure = error as NSError
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "Vector", category: "DocumentRecognition")
+                .error("Vision failed: domain=\(failure.domain, privacy: .public), code=\(failure.code)")
             throw DocumentRecognitionError.recognitionFailed
         }
 
