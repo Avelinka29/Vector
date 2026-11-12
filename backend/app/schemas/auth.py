@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.models.enums import UserRole, UserStatus
 
@@ -13,6 +13,18 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=1, max_length=128)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def local_admin_alias(cls, value):
+        from app.core.config import settings
+        from app.commands.demo_admin import DEMO_ADMIN_EMAIL
+        if isinstance(value, str) and value.strip().casefold() in {"admin", DEMO_ADMIN_EMAIL}:
+            if settings.environment != "development":
+                raise ValueError("Демонстрационный вход доступен только на локальном сервере")
+            return DEMO_ADMIN_EMAIL
+        return value
+
 
 
 class RefreshRequest(BaseModel):

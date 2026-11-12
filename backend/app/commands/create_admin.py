@@ -21,6 +21,7 @@ async def create_admin() -> None:
         if existing:
             existing.role = UserRole.ADMIN
             existing.status = UserStatus.ACTIVE
+            existing.email_verified = True
             existing.password_hash = hash_password(password)
             existing.full_name = full_name or existing.full_name
         else:
