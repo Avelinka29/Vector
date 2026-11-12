@@ -7,7 +7,20 @@ final class RegistrationViewModel {
     static let totalSteps = 10
 
     var currentStep = 1
-    var profile: ApplicantProfile
+    var profile: ApplicantProfile {
+        didSet {
+            guard profile.personal != oldValue.personal || profile.passport != oldValue.passport else { return }
+            // A result belongs to the identity used for that check, not to later edits.
+            for index in profile.documents.indices where profile.documents[index].kind != .portrait {
+                guard profile.documents[index].verification != nil else { continue }
+                profile.documents[index].verification = DocumentVerification(
+                    status: .needsReview, confidence: 0, matchedChecks: [],
+                    warnings: ["Данные профиля изменены. Повторите проверку документа."],
+                    checkedAt: nil
+                )
+            }
+        }
+    }
     var errors: [String: String] = [:]
     var isSaving = false
     var saveError: String?
@@ -90,7 +103,40 @@ final class RegistrationViewModel {
 
     var availableInstitutions: [InstitutionOption] {
         guard let status = profile.education.status else { return [] }
-        return InstitutionCatalog.samples.filter { $0.supportedStatuses.contains(status) }
+        return catalogInstitutions.filter { $0.supportedStatuses.contains(status) }
+    }
+
+    var catalogInstitutions: [InstitutionOption] = []
+    var isLoadingInstitutions = false
+    var institutionsError: String?
+    private var institutionsLoaded = false
+
+    func loadInstitutions() async {
+        guard !institutionsLoaded, !isLoadingInstitutions else { return }
+        isLoadingInstitutions = true
+        institutionsError = nil
+        defer { isLoadingInstitutions = false }
+        do {
+            let records = try await BackendCatalogInstitutionRepository().fetchPublishedInstitutions()
+            catalogInstitutions = records.map { record in
+                let type = record.type.lowercased()
+                let statuses: Set<EducationStatus>
+                if type.contains("higher") || type.contains("university") {
+                    statuses = [.university]
+                } else if type.contains("college") || type.contains("vocational") {
+                    statuses = [.college]
+                } else if type.contains("school") || type.contains("gymnasium") || type.contains("lyceum") {
+                    statuses = [.grade9, .grade11]
+                } else {
+                    statuses = []
+                }
+                return InstitutionOption(id: record.id, name: record.name,
+                                         locality: record.locality, supportedStatuses: statuses)
+            }
+            institutionsLoaded = true
+        } catch {
+            institutionsError = "Не удалось загрузить справочник. Можно повторить загрузку или ввести название вручную."
+        }
     }
 
     func selectCountry(_ id: String) {
@@ -253,11 +299,18 @@ final class RegistrationViewModel {
                 birthDate: profile.personal.birthDate,
                 passportNumber: profile.passport.seriesAndNumber
             )
-            profile.documents[index].verification = try await documentRecognitionService.verify(
+            let selectedURL = profile.documents[index].localURL
+            let personal = profile.personal
+            let passport = profile.passport
+            let verification = try await documentRecognitionService.verify(
                 imageData: data,
                 kind: kind,
                 expected: expected
             )
+            guard profile.personal == personal, profile.passport == passport,
+                  profile.documents.indices.contains(index),
+                  profile.documents[index].localURL == selectedURL else { return }
+            profile.documents[index].verification = verification
         } catch {
             markVerificationFailed(kind: kind, message: error.localizedDescription)
         }

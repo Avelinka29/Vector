@@ -122,71 +122,12 @@ struct InstitutionData: Codable, Equatable {
     var profileClass = ""
 }
 
-enum DocumentKind: String, Codable, CaseIterable, Identifiable {
-    case passport
-    case certificate
-    case examCertificate
-    case portrait
-    case other
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .passport: "Паспорт"
-        case .certificate: "Аттестат"
-        case .examCertificate: "Сертификат ЦЭ / ЦТ"
-        case .portrait: "Фото 3×4"
-        case .other: "Другие документы"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .passport: "Разворот с фотографией"
-        case .certificate: "Документ об образовании"
-        case .examCertificate: "При наличии"
-        case .portrait: "Фотография для документов"
-        case .other: "Необязательно"
-        }
-    }
-
-    var isRequired: Bool {
-        false
-    }
-
-    var icon: String {
-        switch self {
-        case .passport: "person.text.rectangle"
-        case .certificate: "doc.text"
-        case .examCertificate: "checkmark.seal"
-        case .portrait: "person.crop.rectangle"
-        case .other: "paperclip"
-        }
-    }
-}
-
 enum DocumentTransferStatus: String, Codable, Equatable {
     case notSelected
     case selected
     case uploading
     case uploaded
     case failed
-}
-
-enum DocumentVerificationStatus: String, Codable, Equatable {
-    case checking
-    case likelyMatches
-    case needsReview
-    case failed
-}
-
-struct DocumentVerification: Codable, Equatable {
-    var status: DocumentVerificationStatus
-    var confidence: Double
-    var matchedChecks: [String]
-    var warnings: [String]
-    var checkedAt: Date?
 }
 
 struct ProfileDocument: Codable, Equatable, Identifiable {
@@ -259,7 +200,50 @@ struct AdditionalData: Codable, Equatable {
     var citizenship = ""
     var needsDormitory = false
     var targetEducation = false
+    var preferredDirections = ""
+    var preferredCities = ""
+    var preferredEducationLevel = ""
+    var preferredStudyForm = ""
+    var fundingPreference = ""
+    var willingToRelocate = false
     var comment = ""
+
+    private enum CodingKeys: String, CodingKey {
+        case citizenship
+        case needsDormitory
+        case targetEducation
+        case preferredDirections
+        case preferredCities
+        case preferredEducationLevel
+        case preferredStudyForm
+        case fundingPreference
+        case willingToRelocate
+        case comment
+    }
+
+    init() {}
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        citizenship = try container.decodeIfPresent(String.self, forKey: .citizenship) ?? ""
+        needsDormitory = try container.decodeIfPresent(Bool.self, forKey: .needsDormitory) ?? false
+        targetEducation = try container.decodeIfPresent(Bool.self, forKey: .targetEducation) ?? false
+        preferredDirections = try container.decodeIfPresent(String.self, forKey: .preferredDirections) ?? ""
+        preferredCities = try container.decodeIfPresent(String.self, forKey: .preferredCities) ?? ""
+        preferredEducationLevel = try container.decodeIfPresent(String.self, forKey: .preferredEducationLevel) ?? ""
+        preferredStudyForm = try container.decodeIfPresent(String.self, forKey: .preferredStudyForm) ?? ""
+        fundingPreference = try container.decodeIfPresent(String.self, forKey: .fundingPreference) ?? ""
+        willingToRelocate = try container.decodeIfPresent(Bool.self, forKey: .willingToRelocate) ?? false
+        comment = try container.decodeIfPresent(String.self, forKey: .comment) ?? ""
+    }
+
+    var hasEducationPreferences: Bool {
+        !preferredDirections.isEmpty
+            || !preferredCities.isEmpty
+            || !preferredEducationLevel.isEmpty
+            || !preferredStudyForm.isEmpty
+            || !fundingPreference.isEmpty
+    }
 }
 
 struct InstitutionOption: Identifiable, Equatable {
@@ -269,25 +253,4 @@ struct InstitutionOption: Identifiable, Equatable {
     let supportedStatuses: Set<EducationStatus>
 }
 
-enum InstitutionCatalog {
-    static let samples: [InstitutionOption] = [
-        InstitutionOption(
-            id: "school-example",
-            name: "Учреждение из локального списка",
-            locality: "Минск",
-            supportedStatuses: [.grade9, .grade11]
-        ),
-        InstitutionOption(
-            id: "college-example",
-            name: "Колледж из локального списка",
-            locality: "Минск",
-            supportedStatuses: [.college]
-        ),
-        InstitutionOption(
-            id: "university-example",
-            name: "Вуз из локального списка",
-            locality: "Минск",
-            supportedStatuses: [.university]
-        )
-    ]
-}
+// Учреждения для анкеты загружаются из серверного справочника.
