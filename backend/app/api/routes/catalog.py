@@ -2,12 +2,32 @@ from fastapi import APIRouter, Query
 from sqlalchemy import func, select
 
 from app.api.dependencies import SessionDependency
-from app.models.catalog import EducationInstitution, EducationInstitutionSpecialty, EducationSpecialty
+from app.models.catalog import EducationInstitution, EducationInstitutionSpecialty, EducationPassingScore, EducationSpecialty
 from app.models.institution_workspace import InstitutionProfile, InstitutionProgram
-from app.schemas.catalog import InstitutionResponse, SpecialtyResponse
+from app.schemas.catalog import InstitutionResponse, PassingScoreResponse, SpecialtyResponse
 from app.services.catalog_visibility import visible_institution
+from app.services.catalog_search import institution_search
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
+
+
+@router.get("/institutions/{institution_id}/passing-scores", response_model=list[PassingScoreResponse])
+async def passing_scores_for_institution(
+    institution_id: str,
+    session: SessionDependency,
+    year: int | None = Query(default=None, ge=2000, le=2100),
+):
+    query = select(EducationPassingScore).join(
+        EducationInstitution, EducationInstitution.id == EducationPassingScore.institution_id
+    ).join(EducationInstitutionSpecialty,
+           (EducationInstitutionSpecialty.institution_id == EducationPassingScore.institution_id)
+           & (EducationInstitutionSpecialty.specialty_id == EducationPassingScore.specialty_id)
+    ).join(EducationSpecialty, EducationSpecialty.id == EducationPassingScore.specialty_id).where(
+        EducationPassingScore.institution_id == institution_id, visible_institution(),
+        EducationInstitutionSpecialty.is_active.is_(True), EducationSpecialty.is_active.is_(True))
+    if year is not None:
+        query = query.where(EducationPassingScore.admission_year == year)
+    return list((await session.scalars(query.order_by(EducationPassingScore.admission_year.desc(), EducationPassingScore.specialty_id))).all())
 
 
 @router.get("/institutions", response_model=list[InstitutionResponse])
@@ -22,7 +42,7 @@ async def institutions(
         InstitutionProfile, InstitutionProfile.catalog_institution_id == EducationInstitution.id
     ).where(visible_institution())
     if search.strip():
-        query = query.where(func.lower(EducationInstitution.name).like(func.lower(f"%{search.strip()}%")))
+        query = query.where(institution_search(search.strip()))
     if institution_type:
         query = query.where(EducationInstitution.type == institution_type)
     rows = (await session.execute(query.order_by(EducationInstitution.name, EducationInstitution.id).offset(offset).limit(limit))).all()

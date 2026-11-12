@@ -1,0 +1,290 @@
+{
+  "checked_at": "2026-11-12",
+  "active_institutions": 344,
+  "active_specialties": 879,
+  "missing_contacts": {
+    "address": 47,
+    "admissions_phone": 67,
+    "admissions_email": 323,
+    "website_url": 64
+  },
+  "institutions_requiring_verification": 344,
+  "specialties_without_code": [
+    {
+      "id": "bntu-architecture",
+      "name": "Архитектура",
+      "source_url": "https://bntu.by/priemnaya-kampaniya"
+    },
+    {
+      "id": "bntu-information-systems",
+      "name": "Информационные системы и технологии",
+      "source_url": "https://bntu.by/priemnaya-kampaniya"
+    },
+    {
+      "id": "bsmu-dentistry",
+      "name": "Стоматология",
+      "source_url": "https://www.bsmu.by/abiturientu/"
+    },
+    {
+      "id": "bsmu-general-medicine",
+      "name": "Лечебное дело",
+      "source_url": "https://www.bsmu.by/abiturientu/"
+    },
+    {
+      "id": "bsu-applied-informatics",
+      "name": "Прикладная информатика",
+      "source_url": "https://abiturient.bsu.by/"
+    },
+    {
+      "id": "bsu-international-relations",
+      "name": "Международные отношения",
+      "source_url": "https://abiturient.bsu.by/"
+    },
+    {
+      "id": "bsuir-information-systems",
+      "name": "Информационные системы и технологии",
+      "source_url": "https://abitur.bsuir.by/"
+    },
+    {
+      "id": "bsuir-software-engineering",
+      "name": "Программная инженерия",
+      "source_url": "https://abitur.bsuir.by/"
+    },
+    {
+      "id": "grsu-software-engineering",
+      "name": "Программная инженерия",
+      "source_url": "https://abit.grsu.by/"
+    },
+    {
+      "id": "polessu-finance",
+      "name": "Финансы и кредит",
+      "source_url": "https://www.polessu.by/abiturientam/"
+    },
+    {
+      "id": "sp_034464cd59c0812a",
+      "name": "Фармация",
+      "source_url": ""
+    },
+    {
+      "id": "sp_0def7ff78b6cb56f",
+      "name": "Техническая эксплуатация технологического оборудования машиностроительного производства",
+      "source_url": ""
+    },
+    {
+      "id": "sp_151ca7e1cf3d1b16",
+      "name": "Сестринское дело",
+      "source_url": ""
+    },
+    {
+      "id": "sp_2d22e66d149b77c6",
+      "name": "Лечебное дело",
+      "source_url": ""
+    },
+    {
+      "id": "sp_337574391262a70d",
+      "name": "Бухгалтерский учет, анализ и контроль",
+      "source_url": ""
+    },
+    {
+      "id": "sp_37f5f6dfe0055659",
+      "name": "Музыковедение",
+      "source_url": ""
+    },
+    {
+      "id": "sp_57c284f81ee05f9d",
+      "name": "Техническое обслуживание электронных систем транспортных средств",
+      "source_url": ""
+    },
+    {
+      "id": "sp_58ba453f54cc6d9b",
+      "name": "Маркетинговая деятельность",
+      "source_url": ""
+    },
+    {
+      "id": "sp_59a590696cc0ea81",
+      "name": "Техническая эксплуатация и наладка автоматизированных электроприводов",
+      "source_url": ""
+    },
+    {
+      "id": "sp_5cad3c86ab70b6ea",
+      "name": "Фортепианное исполнительство",
+      "source_url": ""
+    },
+    {
+      "id": "sp_60557a85e87f0af3",
+      "name": "Искусство балета",
+      "source_url": ""
+    },
+    {
+      "id": "sp_63a84d44833d43b0",
+      "name": "Инструментальное исполнительство (инструменты народного оркестра)",
+      "source_url": ""
+    },
+    {
+      "id": "sp_6c15be02ba4bf835",
+      "name": "Инструментальное исполнительство (оркестровые духовые и ударные инструменты)",
+      "source_url": ""
+    },
+    {
+      "id": "sp_7e3f54ff9fbd66bc",
+      "name": "Фотография",
+      "source_url": ""
+    },
+    {
+      "id": "sp_8f82c52d101e1461",
+      "name": "Техническая эксплуатация воздушных судов и двигателей",
+      "source_url": ""
+    },
+    {
+      "id": "sp_946fc74c3e3cda1c",
+      "name": "Техническая эксплуатация оборудования легкой промышленности",
+      "source_url": ""
+    },
+    {
+      "id": "sp_a10eba827fe48063",
+      "name": "Монтаж и эксплуатация электрооборудования",
+      "source_url": ""
+    },
+    {
+      "id": "sp_a1bb8b10176289a6",
+      "name": "Производство хлебобулочных, макаронных, кондитерских изделий и пищеконцентратов",
+      "source_url": ""
+    },
+    {
+      "id": "sp_a53d2a76ab877847",
+      "name": "Живопись (живопись станковая)",
+      "source_url": ""
+    },
+    {
+      "id": "sp_aa6529c346500e5d",
+      "name": "Техническое обслуживание и ремонт транспортных средств",
+      "source_url": ""
+    },
+    {
+      "id": "sp_ae76813d6906d94e",
+      "name": "Скульптура",
+      "source_url": ""
+    },
+    {
+      "id": "sp_b8624bfff704be4c",
+      "name": "Хоровое исполнительство (академический хор)",
+      "source_url": ""
+    },
+    {
+      "id": "sp_c356011328d41027",
+      "name": "Разработка и сопровождение программного обеспечения информационных систем",
+      "source_url": ""
+    },
+    {
+      "id": "sp_ce3761593317dd66",
+      "name": "Документационное обеспечение управления",
+      "source_url": ""
+    },
+    {
+      "id": "sp_d075034bb8962ab3",
+      "name": "Медико-реабилитационное дело",
+      "source_url": ""
+    },
+    {
+      "id": "sp_d564b5c038964e0e",
+      "name": "Производство и техническое обслуживание двигателей внутреннего сгорания",
+      "source_url": ""
+    },
+    {
+      "id": "sp_dbc244945c033c55",
+      "name": "Дизайн (дизайн графический)",
+      "source_url": ""
+    },
+    {
+      "id": "sp_e0f0bf4708f69b64",
+      "name": "Производство швейных изделий",
+      "source_url": ""
+    },
+    {
+      "id": "sp_e657921647d470a4",
+      "name": "Эксплуатация электрооборудования и систем электроснабжения городского электрического транспорта",
+      "source_url": ""
+    },
+    {
+      "id": "sp_eccfcb74c5d5e7f9",
+      "name": "Производство изделий микро- и наноэлектроники",
+      "source_url": ""
+    },
+    {
+      "id": "sp_ee8c172d9702dcc2",
+      "name": "Инструментальное исполнительство (оркестровые струнные смычковые инструменты)",
+      "source_url": ""
+    },
+    {
+      "id": "sp_efb23ce5826d2f54",
+      "name": "Парикмахерское искусство и декоративная косметика",
+      "source_url": ""
+    },
+    {
+      "id": "sp_f13d96e63c6738a4",
+      "name": "Технологическое обеспечение машиностроительного производства",
+      "source_url": ""
+    }
+  ],
+  "possible_duplicate_institutions": {
+    "полесский государственный университет": [
+      "abiturient_213a9889b12f8b",
+      "polessu"
+    ],
+    "белорусский государственный медицинский университет": [
+      "abiturient_29896c9863b4a6",
+      "bsmu"
+    ],
+    "белорусский национальный технический университет": [
+      "abiturient_30c6b85dc4914c",
+      "bntu"
+    ],
+    "белорусская государственная академия авиации": [
+      "abiturient_382c4cc9e44fd6",
+      "ripo_b768aa4219a08a"
+    ],
+    "могилевский государственный университет имени а а кулешова": [
+      "abiturient_c0ac22385919f0",
+      "msu"
+    ],
+    "белорусский государственный университет информатики и радиоэлектроники": [
+      "abiturient_d0e47fee005fc7",
+      "bsuir"
+    ],
+    "витебский государственный университет имени п м машерова": [
+      "abiturient_e4d6ebadeafcc6",
+      "vsu"
+    ],
+    "гродненский государственный университет имени янки купалы": [
+      "abiturient_e9f0edc100ad7c",
+      "grsu"
+    ],
+    "брестский государственный университет имени а с пушкина": [
+      "abiturient_f0b8ef784589b6",
+      "brsu"
+    ],
+    "белорусский государственный университет": [
+      "abiturient_f6bc6d7d0da28b",
+      "bsu"
+    ],
+    "брестский государственный колледж связи": [
+      "brest-college-communications",
+      "ripo_2920030a5bccaa"
+    ],
+    "гродненский государственный политехнический колледж": [
+      "grodno-polytechnic-college",
+      "ripo_951c03f3917c63"
+    ],
+    "филиал учреждения образования белорусский торгово экономический университет потребительской кооперации могилевский торговый колледж": [
+      "ripo_3adef9ff0dbb00",
+      "ripo_96c22aa3e27aef"
+    ]
+  },
+  "import_issues": [
+    {
+      "institution_id": "abiturient_cede46cb994750",
+      "error": "No coded specialties extracted from reception plan",
+      "source_url": "https://abiturient.by/node/85590/reception-plan"
+    }
+  ]
+}

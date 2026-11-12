@@ -1,6 +1,7 @@
 from datetime import date, datetime
+from decimal import Decimal
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -118,3 +119,30 @@ class EducationCatalogMetadata(Base):
 
     key: Mapped[str] = mapped_column(String(120), primary_key=True)
     value: Mapped[object] = mapped_column(JSON)
+
+
+class EducationPassingScore(Base):
+    __tablename__ = "education_passing_scores"
+    __table_args__ = (
+        UniqueConstraint(
+            "institution_id", "specialty_id", "admission_year", "study_form", "funding_type",
+            name="education_passing_scores_identity_key",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(240), primary_key=True)
+    institution_id: Mapped[str] = mapped_column(
+        String(160), ForeignKey("education_institutions.id", ondelete="CASCADE"), index=True
+    )
+    specialty_id: Mapped[str] = mapped_column(
+        String(200), ForeignKey("education_specialties.id", ondelete="CASCADE"), index=True
+    )
+    admission_year: Mapped[int] = mapped_column(Integer)
+    study_form: Mapped[str] = mapped_column(String(100), default="")
+    funding_type: Mapped[str] = mapped_column(String(50), default="budget")
+    score: Mapped[Decimal] = mapped_column(Numeric(6, 2))
+    source_url: Mapped[str] = mapped_column(String(1000))
+    verified_at: Mapped[date] = mapped_column(Date)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = True
     web_app_url: str = "http://localhost:4173"
     public_app_url: str = "vector://auth"
+    openrouter_api_key: str | None = None
+    openrouter_model: str = "openrouter/free"
+    openrouter_base_url: str = "https://openrouter.ai/api/v1"
+    openrouter_app_name: str = "VECTOR"
+    assistant_timeout_seconds: float = 45.0
 
     @field_validator("allowed_origins", mode="before")
     @classmethod

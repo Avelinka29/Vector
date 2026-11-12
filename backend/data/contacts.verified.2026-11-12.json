@@ -1,0 +1,46 @@
+[
+  {
+    "institution_ids": ["bsuir", "abiturient_d0e47fee005fc7"],
+    "source_url": "https://abitur.bsuir.by/kontakty-priyomnoy-komissii",
+    "checked_at": "2026-11-12",
+    "fields": {
+      "admissions_phone": "+375 29 550 96 69",
+      "admissions_email": "prcom@bsuir.by",
+      "admissions_url": "https://abitur.bsuir.by/"
+    }
+  },
+  {
+    "institution_ids": ["abiturient_30b0e9b3469cb2"],
+    "source_url": "https://bseu.by/",
+    "checked_at": "2026-11-12",
+    "fields": {
+      "address": "220070, г. Минск, пр. Партизанский, 26",
+      "admissions_phone": "+375 17 209 88 99",
+      "admissions_email": "atp@bseu.by",
+      "website_url": "https://bseu.by/"
+    }
+  },
+  {
+    "institution_ids": ["ripo_d6aff4c135c88d"],
+    "source_url": "https://bseu.by/",
+    "checked_at": "2026-11-12",
+    "fields": {
+      "address": "231400, Гродненская обл., г. Новогрудок, ул. Мицкевича, 15",
+      "admissions_phone": "+375 1597 4-93-02",
+      "admissions_email": "ngtek@bseu.by",
+      "website_url": "https://www.ntek.by/"
+    }
+  },
+  {
+    "institution_ids": ["bsmu", "abiturient_29896c9863b4a6"],
+    "source_url": "https://www.bsmu.by/abiturientu/",
+    "checked_at": "2026-11-12",
+    "fields": {
+      "address": "220083, г. Минск, пр. Дзержинского, 83",
+      "admissions_phone": "+375 29 116-01-47",
+      "admissions_email": "pk@bsmu.by",
+      "website_url": "https://www.bsmu.by/",
+      "admissions_url": "https://www.bsmu.by/abiturientu/"
+    }
+  }
+]

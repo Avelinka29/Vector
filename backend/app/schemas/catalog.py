@@ -41,3 +41,17 @@ class InstitutionResponse(BaseModel):
     education_levels: list[str] = Field(default_factory=list)
     description: str = ""
     model_config = {"from_attributes": True}
+
+
+class PassingScoreResponse(BaseModel):
+    id: str
+    institution_id: str
+    specialty_id: str
+    admission_year: int
+    study_form: str
+    funding_type: str
+    score: float
+    source_url: str
+    verified_at: date
+
+    model_config = {"from_attributes": True}

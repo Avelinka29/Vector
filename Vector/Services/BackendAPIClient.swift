@@ -43,8 +43,23 @@ nonisolated struct BackendMessageResponse: Codable, Sendable {
     let debugToken: String?
 }
 
-nonisolated private struct BackendErrorResponse: Codable, Sendable {
+nonisolated private struct BackendErrorResponse: Decodable, Sendable {
     let detail: String
+
+    private enum CodingKeys: String, CodingKey { case detail }
+    private struct ValidationIssue: Decodable {
+        let msg: String
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if let message = try? container.decode(String.self, forKey: .detail) {
+            detail = message
+        } else {
+            _ = try container.decode([ValidationIssue].self, forKey: .detail)
+            detail = "Проверьте корректность email и заполнение обязательных полей."
+        }
+    }
 }
 
 nonisolated struct EmptyResponse: Decodable, Sendable {}
@@ -124,7 +139,7 @@ actor BackendAPIClient {
         } else {
             let configuration = URLSessionConfiguration.ephemeral
             configuration.timeoutIntervalForRequest = 12
-            configuration.timeoutIntervalForResource = 20
+            configuration.timeoutIntervalForResource = 60
             configuration.waitsForConnectivity = false
             self.session = URLSession(configuration: configuration)
         }
@@ -183,12 +198,16 @@ actor BackendAPIClient {
         body: Body? = Optional<String>.none,
         queryItems: [URLQueryItem] = [],
         authorized: Bool = false,
-        retryAfterRefresh: Bool = true
+        retryAfterRefresh: Bool = true,
+        timeoutInterval: TimeInterval? = nil
     ) async throws -> Response {
         var components = URLComponents(url: baseURL.appending(path: path), resolvingAgainstBaseURL: false)!
         if !queryItems.isEmpty { components.queryItems = queryItems }
         guard let url = components.url else { throw BackendAPIError.invalidConfiguration }
         var request = URLRequest(url: url)
+        if let timeoutInterval {
+            request.timeoutInterval = timeoutInterval
+        }
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let body {
@@ -227,7 +246,8 @@ actor BackendAPIClient {
                 body: body,
                 queryItems: queryItems,
                 authorized: true,
-                retryAfterRefresh: false
+                retryAfterRefresh: false,
+                timeoutInterval: timeoutInterval
             )
         }
         guard (200..<300).contains(http.statusCode) else {
