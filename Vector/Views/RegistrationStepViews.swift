@@ -304,7 +304,7 @@ struct InstitutionStepView: View {
                         }
                     }
                 } label: {
-                    Label("Выбрать из локального списка", systemImage: "list.bullet")
+                    Label("Выбрать из справочника", systemImage: "list.bullet")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.systemBlue01)
                         .frame(maxWidth: .infinity, minHeight: 46)
@@ -330,10 +330,20 @@ struct InstitutionStepView: View {
                 text: $model.profile.institution.profileClass
             )
 
-            Text("Локальный список демонстрационный и подготовлен для замены реальным справочником.")
+            if model.isLoadingInstitutions {
+                ProgressView("Загрузка справочника")
+            }
+            if let error = model.institutionsError {
+                Text(error).font(.caption).foregroundStyle(.secondary)
+                Button("Повторить загрузку") {
+                    Task { await model.loadInstitutions() }
+                }
+            }
+            Text("Если вашего учебного заведения нет в справочнике, укажите его полное название и населённый пункт вручную.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+        .task { await model.loadInstitutions() }
     }
 }
 
@@ -438,6 +448,7 @@ struct DocumentCard: View {
             if let fileName = document.fileName {
                 if let localURL = document.localURL {
                     LocalDocumentPreview(url: localURL)
+                        .id(document.selectedAt)
                 }
                 Text(fileName)
                     .font(.caption)
@@ -714,6 +725,8 @@ struct AdditionalStepView: View {
                     .stroke(.systemGrey1.opacity(0.7))
             }
 
+            EducationPreferencesSection(additional: $model.profile.additional)
+
             VStack(alignment: .leading, spacing: 8) {
                 Text("Комментарий (необязательно)")
                     .font(.caption)
@@ -729,6 +742,80 @@ struct AdditionalStepView: View {
                     }
             }
         }
+    }
+}
+
+struct EducationPreferencesSection: View {
+    @Binding var additional: AdditionalData
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Label("Предпочтения для рекомендаций", systemImage: "sparkles")
+                .font(.headline)
+                .foregroundStyle(.systemDarkBlue)
+
+            Text("Помощник будет учитывать эти сведения при подборе специальностей и учреждений.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            VectorTextField2(
+                placeholder: "Интересующие направления",
+                icon: "book.closed",
+                text: $additional.preferredDirections
+            )
+
+            Text("Например: программирование, дизайн, медицина")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+
+            VectorTextField2(
+                placeholder: "Предпочтительные города",
+                icon: "mappin.and.ellipse",
+                text: $additional.preferredCities
+            )
+
+            preferencePicker(
+                title: "Уровень образования",
+                selection: $additional.preferredEducationLevel,
+                values: ["Высшее образование", "Среднее специальное", "Профессионально-техническое"]
+            )
+
+            preferencePicker(
+                title: "Форма обучения",
+                selection: $additional.preferredStudyForm,
+                values: ["Очная", "Заочная", "Дистанционная"]
+            )
+
+            preferencePicker(
+                title: "Финансирование",
+                selection: $additional.fundingPreference,
+                values: ["Бюджет", "Платное", "Рассматриваю оба варианта"]
+            )
+
+            Toggle("Готов(а) переехать в другой город", isOn: $additional.willingToRelocate)
+                .tint(.systemBlue01)
+        }
+        .padding(16)
+        .background(.systemWhite, in: RoundedRectangle(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(.systemGrey1.opacity(0.7))
+        }
+    }
+
+    private func preferencePicker(
+        title: String,
+        selection: Binding<String>,
+        values: [String]
+    ) -> some View {
+        Picker(title, selection: selection) {
+            Text("Не выбрано").tag("")
+            ForEach(values, id: \.self) { value in
+                Text(value).tag(value)
+            }
+        }
+        .pickerStyle(.menu)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

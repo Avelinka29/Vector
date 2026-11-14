@@ -25,9 +25,14 @@ struct OrganizationApplicationView: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
-                    OrganizationApplicationHeader(email: email)
-                    OrganizationTypePicker(selection: $draft.type)
-                    OrganizationApplicationFields(draft: $draft)
+                    OrganizationApplicationHeader(email: email, type: draft.type)
+                    OrganizationAccountTypeCard(type: draft.type)
+
+                    if draft.type == .institution {
+                        InstitutionApplicationFields(draft: $draft, email: email)
+                    } else {
+                        OrganizationApplicationFields(draft: $draft)
+                    }
 
                     if let errorMessage {
                         Text(errorMessage)
@@ -66,9 +71,21 @@ struct OrganizationApplicationView: View {
     }
 
     private var isValid: Bool {
-        !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let baseFieldsAreValid =
+            !draft.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !draft.city.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !draft.taxId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
+        guard draft.type == .institution else { return baseFieldsAreValid }
+
+        let taxID = draft.taxId.trimmingCharacters(in: .whitespacesAndNewlines)
+        return baseFieldsAreValid
+            && taxID.count == 9
+            && taxID.allSatisfy(\.isNumber)
+            && !draft.legalName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !draft.address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !draft.contactName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && !draft.phone.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func submit() async {
@@ -87,13 +104,14 @@ struct OrganizationApplicationView: View {
 
 private struct OrganizationApplicationHeader: View {
     let email: String
+    let type: OrganizationType
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("VECTOR / ОРГАНИЗАЦИЯ")
+            Text(type == .institution ? "РЕГИСТРАЦИЯ УЧРЕЖДЕНИЯ" : "РЕГИСТРАЦИЯ РАБОТОДАТЕЛЯ")
                 .font(.caption.bold())
                 .foregroundStyle(.systemBlue01)
-            Text("Регистрация организации")
+            Text(type == .institution ? "Расскажите об учреждении" : "Расскажите об организации")
                 .font(.largeTitle.bold())
                 .foregroundStyle(.systemDarkBlue)
             Text("Заявка будет привязана к аккаунту \(email) и появится у администратора.")
@@ -103,36 +121,87 @@ private struct OrganizationApplicationHeader: View {
     }
 }
 
-private struct OrganizationTypePicker: View {
-    @Binding var selection: OrganizationType
+private struct OrganizationAccountTypeCard: View {
+    let type: OrganizationType
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Тип аккаунта")
-                .font(.headline)
+        Label(type.title, systemImage: type.icon)
+            .font(.headline)
+            .foregroundStyle(.systemBlue01)
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(.systemBlue01.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+private struct InstitutionApplicationFields: View {
+    @Binding var draft: OrganizationApplicationDraft
+    let email: String
+
+    private let institutionTypes = [
+        "Университет",
+        "Академия",
+        "Институт",
+        "Колледж",
+        "Другое учреждение"
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("Об учреждении")
+                .font(.title2.bold())
                 .foregroundStyle(.systemDarkBlue)
 
-            HStack(spacing: 12) {
-                ForEach(OrganizationType.allCases) { type in
-                    Button {
-                        selection = type
-                    } label: {
-                        VStack(spacing: 8) {
-                            Image(systemName: type.icon)
-                                .font(.title2)
-                            Text(type.title)
-                                .font(.subheadline.bold())
-                        }
-                        .foregroundStyle(selection == type ? .white : .systemDarkBlue)
-                        .frame(maxWidth: .infinity, minHeight: 92)
-                        .background(
-                            selection == type ? Color.systemBlue01 : Color.systemBlue01.opacity(0.08),
-                            in: RoundedRectangle(cornerRadius: 16)
-                        )
+            OrganizationField(title: "Краткое название", text: $draft.name)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Тип учреждения")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.systemDarkBlue)
+
+                Picker("Тип учреждения", selection: $draft.institutionType) {
+                    ForEach(institutionTypes, id: \.self) { type in
+                        Text(type).tag(type)
                     }
-                    .buttonStyle(.plain)
+                }
+                .pickerStyle(.menu)
+                .tint(.systemBlue01)
+                .padding(.horizontal, 12)
+                .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
+                .background(.systemBlue01.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(.systemGrey1.opacity(0.35))
                 }
             }
+
+            OrganizationField(title: "Полное название учреждения", text: $draft.legalName)
+            OrganizationField(title: "УНП — 9 цифр", text: $draft.taxId)
+                .keyboardType(.numberPad)
+                .onChange(of: draft.taxId) { _, newValue in
+                    draft.taxId = String(newValue.filter(\.isNumber).prefix(9))
+                }
+            OrganizationField(title: "Город", text: $draft.city)
+            OrganizationField(title: "Адрес учреждения", text: $draft.address)
+
+            Text("Ответственный сотрудник")
+                .font(.title2.bold())
+                .foregroundStyle(.systemDarkBlue)
+                .padding(.top, 4)
+
+            OrganizationField(title: "Имя и фамилия ответственного", text: $draft.contactName)
+
+            LabeledContent("Рабочий email") {
+                Text(email)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.trailing)
+            }
+            .font(.subheadline)
+            .padding(16)
+            .background(.systemBlue01.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+
+            OrganizationField(title: "Контактный телефон", text: $draft.phone)
+                .keyboardType(.phonePad)
         }
     }
 }
@@ -213,6 +282,9 @@ struct OrganizationRootView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.systemBlue01)
 
+                    NavigationLink("Вход и email") {
+                        AccountConnectionsView()
+                    }
                     Button("Выйти", role: .destructive, action: onSignOut)
                         .frame(maxWidth: .infinity, minHeight: 48)
                 }
@@ -333,17 +405,17 @@ private struct OrganizationWorkspace: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                OrganizationWorkspaceRow(
-                    icon: "briefcase",
-                    title: "Вакансии",
-                    subtitle: "Создание и управление вакансиями"
-                )
+                NavigationLink {
+                    EmployerWorkspaceView()
+                } label: {
+                    OrganizationWorkspaceRow(
+                        icon: "briefcase",
+                        title: "Вакансии, отклики и сотрудники",
+                        subtitle: "Полное управление кабинетом работодателя"
+                    )
+                }
+                .buttonStyle(.plain)
             }
-            OrganizationWorkspaceRow(
-                icon: "person.2",
-                title: "Сотрудники",
-                subtitle: "Приглашения и роли"
-            )
         }
     }
 }

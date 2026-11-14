@@ -20,7 +20,14 @@ nonisolated private struct PasswordResetBody: Encodable, Sendable {
 }
 
 struct PasswordResetView: View {
-    let link: PasswordResetLink
+    let link: PasswordResetLink?
+    @State private var pastedLink = ""
+
+    private var resetToken: String? {
+        if let link { return link.token }
+        guard let url = URL(string: pastedLink.trimmingCharacters(in: .whitespacesAndNewlines)) else { return nil }
+        return PasswordResetLink(url: url)?.token
+    }
     @Environment(\.dismiss) private var dismiss
     @State private var password = ""
     @State private var confirmation = ""
@@ -30,7 +37,7 @@ struct PasswordResetView: View {
 
     private var canSave: Bool {
         (8...128).contains(password.unicodeScalars.count)
-            && password == confirmation && !isSaving
+            && password == confirmation && resetToken != nil && !isSaving
     }
 
     var body: some View {
@@ -44,6 +51,14 @@ struct PasswordResetView: View {
                         Button("Готово") { dismiss() }
                     }
                 } else {
+                    if link == nil {
+                        Section("Ссылка из письма") {
+                            TextField("Вставьте полную ссылку", text: $pastedLink)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                                .keyboardType(.URL)
+                        }
+                    }
                     Section {
                         SecureField("Новый пароль", text: $password)
                             .textContentType(.newPassword)
@@ -82,7 +97,7 @@ struct PasswordResetView: View {
     }
 
     private func save() async {
-        guard canSave else { return }
+        guard canSave, let token = resetToken else { return }
         isSaving = true
         errorMessage = nil
         defer { isSaving = false }
@@ -90,7 +105,7 @@ struct PasswordResetView: View {
             let _: BackendMessageResponse = try await BackendAPIClient.shared.request(
                 "/api/v1/auth/password/reset/confirm",
                 method: "POST",
-                body: PasswordResetBody(token: link.token, newPassword: password)
+                body: PasswordResetBody(token: token, newPassword: password)
             )
             password = ""
             confirmation = ""

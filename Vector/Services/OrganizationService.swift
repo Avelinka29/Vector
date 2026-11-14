@@ -27,6 +27,18 @@ final class OrganizationService {
 
     func apply(_ draft: OrganizationApplicationDraft) async throws -> OrganizationRecord {
         let website = draft.website.trimmingCharacters(in: .whitespacesAndNewlines)
+        let description: String
+        if draft.type == .institution {
+            description = [
+                "Тип учреждения: \(draft.institutionType)",
+                "Адрес: \(draft.address.trimmingCharacters(in: .whitespacesAndNewlines))",
+                "Ответственный: \(draft.contactName.trimmingCharacters(in: .whitespacesAndNewlines))",
+                "Телефон: \(draft.phone.trimmingCharacters(in: .whitespacesAndNewlines))"
+            ].joined(separator: "\n")
+        } else {
+            description = draft.description.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
         return try await api.request(
             "/api/v1/organizations/applications",
             method: "POST",
@@ -37,7 +49,7 @@ final class OrganizationService {
                 taxId: draft.taxId.trimmingCharacters(in: .whitespacesAndNewlines),
                 city: draft.city.trimmingCharacters(in: .whitespacesAndNewlines),
                 website: website.isEmpty ? nil : URL(string: website),
-                description: draft.description.trimmingCharacters(in: .whitespacesAndNewlines)
+                description: description
             ),
             authorized: true
         )

@@ -6,10 +6,17 @@ protocol AuthenticationService {
     func restoreUser() async throws -> AuthenticatedUser?
     func signIn(email: String, password: String) async throws -> AuthenticatedUser
     func register(email: String, password: String, role: AppRole) async throws -> AuthenticatedUser
+    func signInWithGoogle(idToken: String, role: AppRole, registering: Bool) async throws -> AuthenticatedUser
     func signOut() throws
     func sendPasswordReset(email: String) async throws
     func reauthenticate(password: String) async throws
     func deleteCurrentUser() async throws
+}
+
+extension AuthenticationService {
+    func signInWithGoogle(idToken: String, role: AppRole, registering: Bool) async throws -> AuthenticatedUser {
+        throw AuthenticationError.unavailable
+    }
 }
 
 enum AuthenticationError: LocalizedError {

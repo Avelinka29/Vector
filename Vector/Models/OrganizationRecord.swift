@@ -53,9 +53,13 @@ nonisolated struct OrganizationRecord: Codable, Identifiable, Sendable {
 nonisolated struct OrganizationApplicationDraft: Sendable {
     var type: OrganizationType = .employer
     var name = ""
+    var institutionType = "Университет"
     var legalName = ""
     var taxId = ""
     var city = ""
+    var address = ""
+    var contactName = ""
+    var phone = ""
     var website = ""
     var description = ""
 }

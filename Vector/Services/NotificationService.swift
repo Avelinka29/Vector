@@ -110,17 +110,13 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
 
         #if canImport(FirebaseMessaging)
         Messaging.messaging().delegate = self
-        Messaging.messaging().token { [weak self] token, error in
-            if let error {
-                Task { @MainActor in
-                    self?.lastErrorMessage = error.localizedDescription
-                }
-                return
-            }
-            guard let token else { return }
-            self?.store(token)
-        }
         #endif
+        Task {
+            let status = await authorizationStatus()
+            if [.authorized, .provisional, .ephemeral].contains(status) {
+                UIApplication.shared.registerForRemoteNotifications()
+            }
+        }
     }
 
     func authorizationStatus() async -> UNAuthorizationStatus {
@@ -152,6 +148,14 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
     func registerAPNsToken(_ deviceToken: Data) {
         #if canImport(FirebaseMessaging)
         Messaging.messaging().apnsToken = deviceToken
+        Task {
+            do {
+                let token = try await Messaging.messaging().token()
+                store(token)
+            } catch {
+                lastErrorMessage = error.localizedDescription
+            }
+        }
         #endif
     }
 
@@ -161,7 +165,8 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
 
     func syncTokenIfAvailable() async {
         do {
-            guard let token = try tokenStore.load() else { return }
+            guard await BackendAPIClient.shared.hasRefreshToken(),
+                  let token = try tokenStore.load() else { return }
             let _: DeviceTokenResponse = try await BackendAPIClient.shared.request(
                 "/api/v1/notifications/device-token",
                 method: "PUT",
@@ -187,6 +192,7 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         do {
             try tokenStore.save(token)
             lastErrorMessage = nil
+            Task { await syncTokenIfAvailable() }
         } catch {
             lastErrorMessage = error.localizedDescription
         }

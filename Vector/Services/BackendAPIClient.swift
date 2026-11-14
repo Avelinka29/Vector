@@ -262,6 +262,51 @@ actor BackendAPIClient {
         return try decoder.decode(Response.self, from: data)
     }
 
+    func upload<Response: Decodable & Sendable>(
+        _ path: String,
+        fileData: Data,
+        fileName: String,
+        contentType: String,
+        fields: [String: String] = [:]
+    ) async throws -> Response {
+        let boundary = "VectorBoundary\(UUID().uuidString)"
+        var body = Data()
+        for (name, value) in fields {
+            body.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"\(name)\"\r\n\r\n\(value)\r\n".utf8))
+        }
+        body.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"\(fileName)\"\r\nContent-Type: \(contentType)\r\n\r\n".utf8))
+        body.append(fileData)
+        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
+
+        var request = URLRequest(url: baseURL.appending(path: path))
+        request.httpMethod = "POST"
+        request.httpBody = body
+        request.timeoutInterval = 60
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        if let accessToken = tokenStore.accessToken {
+            request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        }
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw BackendAPIError.invalidResponse }
+        if http.statusCode == 401 {
+            try await refreshTokens()
+            return try await upload(
+                path,
+                fileData: fileData,
+                fileName: fileName,
+                contentType: contentType,
+                fields: fields
+            )
+        }
+        guard (200..<300).contains(http.statusCode) else {
+            if let serverError = try? decoder.decode(BackendErrorResponse.self, from: data) {
+                throw BackendAPIError.server(message: serverError.detail)
+            }
+            throw BackendAPIError.invalidResponse
+        }
+        return try decoder.decode(Response.self, from: data)
+    }
+
     private func refreshTokens() async throws {
         guard let refreshToken = tokenStore.refreshToken else {
             throw BackendAPIError.unauthorized

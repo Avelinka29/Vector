@@ -114,6 +114,7 @@ nonisolated private struct BackendApplicationDTO: Codable, Sendable {
     let priority: Int
     let status: ApplicationStatus
     let history: [ApplicationStatusEvent]
+    let submissionDeadline: String?
     let createdAt: Date
     let updatedAt: Date
 
@@ -133,6 +134,7 @@ nonisolated private struct BackendApplicationDTO: Codable, Sendable {
             createdAt: createdAt
         )
         value.history = history
+        value.submissionDeadline = submissionDeadline
         value.updatedAt = updatedAt
         return value
     }

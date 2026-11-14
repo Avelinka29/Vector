@@ -6,9 +6,11 @@ struct LoginView: View {
     @State private var selectedTab = 0
     @State private var email = ""
     @State private var password = ""
+    @State private var confirmPassword = ""
     @State private var selectedRegistrationRole: AppRole = .applicant
     @State private var isWorking = false
     @State private var isSendingPasswordReset = false
+    @State private var isShowingPasswordReset = false
     @State private var passwordResetAlert: PasswordResetAlert?
 
     var body: some View {
@@ -31,10 +33,27 @@ struct LoginView: View {
 
                     VectorTextField(
                         icon: "lock",
-                        placeholder: "Пароль",
+                        placeholder: selectedTab == 1 && selectedRegistrationRole == .institution
+                            ? "Пароль — минимум 10 символов"
+                            : "Пароль",
                         isSecure: true,
                         text: $password
                     )
+
+                    if selectedTab == 1 && selectedRegistrationRole == .institution {
+                        VectorTextField(
+                            icon: "lock.rotation",
+                            placeholder: "Повторите пароль",
+                            isSecure: true,
+                            text: $confirmPassword
+                        )
+
+                        if !confirmPassword.isEmpty && password != confirmPassword {
+                            Text("Пароли не совпадают.")
+                                .font(.caption)
+                                .foregroundStyle(.red)
+                        }
+                    }
 
                     if let message = session.errorMessage {
                         Text(message)
@@ -60,8 +79,8 @@ struct LoginView: View {
                     ) {
                         Task { await submit() }
                     }
-                    .disabled(isWorking || email.isEmpty || password.isEmpty)
-                    .opacity(isWorking || email.isEmpty || password.isEmpty ? 0.6 : 1)
+                    .disabled(!canSubmit)
+                    .opacity(canSubmit ? 1 : 0.6)
 
                     if isWorking {
                         ProgressView()
@@ -69,11 +88,18 @@ struct LoginView: View {
                             .frame(maxWidth: .infinity)
                     }
 
+                    if selectedTab == 0 {
+                        Button("Уже есть ссылка для сброса пароля") {
+                            isShowingPasswordReset = true
+                        }
+                        .font(.footnote)
+                    }
+
                     LoginDivider()
 
                     SocialSignInSection(
                         isRegistration: selectedTab == 1,
-                        onGoogle: { showUnavailableProvider("Google") },
+                        onGoogle: { Task { await signInWithGoogle() } },
                         onApple: { showUnavailableProvider("Apple") }
                     )
 
@@ -93,6 +119,9 @@ struct LoginView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .background(.systemWhite)
+            .sheet(isPresented: $isShowingPasswordReset) {
+                PasswordResetView(link: nil)
+            }
             .alert(item: $passwordResetAlert) { alert in
                 Alert(
                     title: Text(alert.title),
@@ -101,6 +130,12 @@ struct LoginView: View {
                 )
             }
         }
+    }
+
+    private var canSubmit: Bool {
+        guard !isWorking, !email.isEmpty, !password.isEmpty else { return false }
+        guard selectedTab == 1 && selectedRegistrationRole == .institution else { return true }
+        return password.count >= 10 && password == confirmPassword
     }
 
     private func submit() async {
@@ -117,6 +152,16 @@ struct LoginView: View {
                 role: selectedRegistrationRole
             )
         }
+    }
+
+    private func signInWithGoogle() async {
+        guard !isWorking else { return }
+        isWorking = true
+        defer { isWorking = false }
+        await session.signInWithGoogle(
+            role: selectedTab == 1 ? selectedRegistrationRole : .applicant,
+            registering: selectedTab == 1
+        )
     }
 
     private func resetPassword() async {

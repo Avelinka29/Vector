@@ -1,6 +1,14 @@
 import SwiftUI
 
 struct MainTabView: View {
+    private enum TabDestination: Hashable {
+        case home
+        case applications
+        case opportunities
+        case assistant
+        case profile
+    }
+
     let userID: String
     let profile: ApplicantProfile?
     let profileStatus: ProfileStatus
@@ -8,6 +16,8 @@ struct MainTabView: View {
     let onEditDocuments: () -> Void
     let onSignOut: () -> Void
     let onDeleteAccount: (String) async throws -> Void
+
+    @State private var selectedTab = TabDestination.home
 
     init(
         userID: String = "",
@@ -28,8 +38,8 @@ struct MainTabView: View {
     }
 
     var body: some View {
-        TabView {
-            Tab("Главная", systemImage: "house") {
+        TabView(selection: $selectedTab) {
+            Tab("Главная", systemImage: "house", value: .home) {
                 NavigationStack {
                     HomeView(
                         profile: profile,
@@ -39,19 +49,27 @@ struct MainTabView: View {
                 }
             }
 
-            Tab("Заявления", systemImage: "doc.text") {
+            Tab("Заявления", systemImage: "doc.text", value: .applications) {
                 NavigationStack {
                     ApplicationsView(applicantID: userID)
                 }
             }
 
-            Tab("Возможности", systemImage: "star") {
+            Tab("Возможности", systemImage: "star", value: .opportunities) {
                 NavigationStack {
-                    OpportunitiesView(applicantID: userID)
+                    OpportunitiesView(applicantID: userID, profile: profile)
                 }
             }
 
-            Tab("Профиль", systemImage: "person") {
+            Tab("ИИ", systemImage: "sparkles", value: .assistant) {
+                NavigationStack {
+                    AssistantView {
+                        selectedTab = .home
+                    }
+                }
+            }
+
+            Tab("Профиль", systemImage: "person", value: .profile) {
                 NavigationStack {
                     ProfileView(
                         profile: profile,
@@ -683,18 +701,40 @@ struct ApplicationsView: View {
 
 struct OpportunitiesView: View {
     let applicantID: String
+    let profile: ApplicantProfile?
 
-    init(applicantID: String = "") {
+    @State private var recommendation: String?
+    @State private var isLoadingRecommendation = false
+    @State private var recommendationError: String?
+
+    init(applicantID: String = "", profile: ApplicantProfile? = nil) {
         self.applicantID = applicantID
+        self.profile = profile
     }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                ApplicantPageHeader(title: "Возможности", subtitle: "Выбирай следующий шаг")
-                OpportunitySearchCard()
+                ApplicantPageHeader(title: "Возможности", subtitle: "Персональный подбор для поступления")
+
+                Text("Рекомендовано AI")
+                    .font(.headline)
+                    .foregroundStyle(.systemDarkBlue)
+
+                AIRecommendationCard(
+                    recommendation: recommendation,
+                    isLoading: isLoadingRecommendation,
+                    errorMessage: recommendationError,
+                    canPersonalize: profile != nil,
+                    onRetry: {
+                        Task { await loadRecommendation(force: true) }
+                    }
+                )
+
                 Text("Каталоги")
                     .font(.headline)
                     .foregroundStyle(.systemDarkBlue)
+
                 NavigationLink {
                     InstitutionsSearchView()
                 } label: {
@@ -704,6 +744,7 @@ struct OpportunitiesView: View {
                         icon: "building.columns"
                     )
                 }
+
                 NavigationLink {
                     SpecialtiesSearchView(applicantID: applicantID)
                 } label: {
@@ -713,29 +754,22 @@ struct OpportunitiesView: View {
                         icon: "book.closed"
                     )
                 }
-                Text("Персональные приглашения появятся здесь после подключения приёмных кампаний.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .padding(.top, 6)
             }
             .padding(20)
         }
         .background(.systemWhite)
         .toolbar(.hidden, for: .navigationBar)
+        .task {
+            await loadRecommendation()
+        }
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                NavigationLink {
-                    AssistantView()
-                } label: {
-                    Image(systemName: "sparkles")
-                }
-                .accessibilityLabel("AI-помощник")
-
                 NavigationLink {
                     AnalyticsView()
                 } label: {
                     Image(systemName: "chart.line.uptrend.xyaxis")
                 }
+
                 NavigationLink {
                     NotificationsView()
                 } label: {
@@ -744,19 +778,129 @@ struct OpportunitiesView: View {
             }
         }
     }
+
+    private func loadRecommendation(force: Bool = false) async {
+        guard profile != nil else { return }
+        guard force || recommendation == nil else { return }
+        guard !isLoadingRecommendation else { return }
+
+        isLoadingRecommendation = true
+        recommendationError = nil
+        defer { isLoadingRecommendation = false }
+
+        do {
+            let response = try await AssistantService.chat(message: recommendationPrompt)
+            recommendation = response.answer
+        } catch {
+            recommendationError = UserFacingError.message(
+                for: error,
+                fallback: "Не удалось обновить рекомендации. Попробуйте ещё раз."
+            )
+        }
+    }
+
+    private var recommendationPrompt: String {
+        guard let profile else { return "" }
+
+        var details: [String] = []
+        if let status = profile.education.status {
+            details.append("статус: \(status.title)")
+        }
+        if !profile.institution.locality.isEmpty {
+            details.append("город: \(profile.institution.locality)")
+        }
+        if !profile.institution.profileClass.isEmpty {
+            details.append("профиль обучения: \(profile.institution.profileClass)")
+        }
+
+        let preferences = profile.additional
+        if !preferences.preferredDirections.isEmpty {
+            details.append("интересующие направления: \(preferences.preferredDirections)")
+        }
+        if !preferences.preferredCities.isEmpty {
+            details.append("предпочтительные города: \(preferences.preferredCities)")
+        }
+        if !preferences.preferredEducationLevel.isEmpty {
+            details.append("желаемый уровень: \(preferences.preferredEducationLevel)")
+        }
+        if !preferences.preferredStudyForm.isEmpty {
+            details.append("форма обучения: \(preferences.preferredStudyForm)")
+        }
+        if !preferences.fundingPreference.isEmpty {
+            details.append("финансирование: \(preferences.fundingPreference)")
+        }
+        if preferences.willingToRelocate {
+            details.append("готовность к переезду: да")
+        }
+
+        let exams = profile.examResults
+            .filter { !$0.subject.isEmpty || !$0.score.isEmpty }
+            .map { "\($0.subject): \($0.score)" }
+            .joined(separator: ", ")
+        if !exams.isEmpty {
+            details.append("результаты экзаменов: \(exams)")
+        }
+
+        let context = details.isEmpty ? "профиль пока заполнен частично" : details.joined(separator: "; ")
+        return """
+        Подбери для абитуриента 3 подходящих направления или учреждения из справочника VECTOR.
+        Дай короткий список: название и одно предложение, почему подходит.
+        Данные профиля: \(context).
+        Не придумывай проходные баллы и обязательно предупреди, что актуальность нужно проверить на официальном сайте.
+        """
+    }
 }
 
-private struct OpportunitySearchCard: View {
+private struct AIRecommendationCard: View {
+    let recommendation: String?
+    let isLoading: Bool
+    let errorMessage: String?
+    let canPersonalize: Bool
+    let onRetry: () -> Void
+
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "magnifyingglass")
-            Text("Поиск возможностей")
-            Spacer()
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Подбор по вашему профилю", systemImage: "sparkles")
+                .font(.headline)
+                .foregroundStyle(.systemBlue01)
+
+            if !canPersonalize {
+                Text("Заполните профиль, чтобы помощник подобрал подходящие направления и учреждения.")
+                    .foregroundStyle(.secondary)
+            } else if isLoading {
+                HStack(spacing: 10) {
+                    ProgressView()
+                    Text("Подбираю варианты…")
+                        .foregroundStyle(.secondary)
+                }
+            } else if let errorMessage {
+                Text(errorMessage)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+
+                Button("Попробовать ещё раз", action: onRetry)
+                    .font(.subheadline.bold())
+            } else if let recommendation {
+                Text(recommendation)
+                    .font(.subheadline)
+                    .foregroundStyle(.systemDarkBlue)
+                    .textSelection(.enabled)
+
+                NavigationLink {
+                    AssistantView()
+                } label: {
+                    Label("Обсудить с помощником", systemImage: "message")
+                        .font(.subheadline.bold())
+                }
+            }
         }
-        .font(.subheadline)
-        .foregroundStyle(.secondary)
-        .padding(14)
-        .background(.systemGrey1.opacity(0.16), in: RoundedRectangle(cornerRadius: 14))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(18)
+        .background(Color.systemBlue01.opacity(0.08), in: RoundedRectangle(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(Color.systemBlue01.opacity(0.18))
+        }
     }
 }
 
@@ -870,9 +1014,9 @@ struct ProfileView: View {
 
             VStack(spacing: 12) {
                 NavigationLink {
-                    NotificationSettingsView()
+                    NotificationsView()
                 } label: {
-                    ApplicantMenuRow(icon: "bell", title: "Уведомления", subtitle: "Настройки оповещений")
+                    ApplicantMenuRow(icon: "bell", title: "Уведомления", subtitle: "Статусы заявлений и сообщения")
                 }
                 NavigationLink {
                     SecurityAndAppearanceSettingsView()
@@ -882,6 +1026,11 @@ struct ProfileView: View {
                         title: "Внешний вид и защита",
                         subtitle: "Тема приложения и Face ID"
                     )
+                }
+                NavigationLink {
+                    AccountConnectionsView()
+                } label: {
+                    ApplicantMenuRow(icon: "person.badge.key", title: "Вход и email", subtitle: "Привязка Google и подтверждение почты")
                 }
                 Button("Выйти", role: .destructive, action: onSignOut)
                     .frame(maxWidth: .infinity, minHeight: 48)

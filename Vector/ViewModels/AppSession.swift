@@ -71,6 +71,22 @@ final class AppSession {
         }
     }
 
+    func signInWithGoogle(role: AppRole, registering: Bool) async {
+        errorMessage = nil
+        do {
+            // Keep the login screen mounted while Google presents its sign-in sheet.
+            let token = try await GoogleSignInService.idToken()
+            launchState = .loading
+            let user = try await authentication.signInWithGoogle(idToken: token, role: role, registering: registering)
+            await routeAuthenticatedUser(user)
+        } catch is CancellationError {
+            launchState = .authentication
+        } catch {
+            errorMessage = error.localizedDescription
+            launchState = .authentication
+        }
+    }
+
     func register(email: String, password: String, role: AppRole) async {
         launchState = .loading
         errorMessage = nil

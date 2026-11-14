@@ -120,7 +120,7 @@ struct DigitalProfileView: View {
                     Divider()
                     ProfileSummaryRow(
                         title: "Предпочтения",
-                        subtitle: profile.additional.citizenship.isEmpty ? "Не заполнено" : "Заполнено",
+                        subtitle: profile.additional.hasEducationPreferences ? "Учитываются в рекомендациях" : "Не заполнено",
                         icon: "slider.horizontal.3"
                     )
                 }

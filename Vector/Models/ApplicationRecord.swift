@@ -52,6 +52,7 @@ struct ApplicationRecord: Codable, Equatable, Identifiable, Sendable {
     var priority: Int
     var status: ApplicationStatus
     var history: [ApplicationStatusEvent]
+    var submissionDeadline: String?
     var createdAt: Date
     var updatedAt: Date
 
@@ -84,6 +85,7 @@ struct ApplicationRecord: Codable, Equatable, Identifiable, Sendable {
                 title: status == .draft ? "Черновик создан" : "Заявление отправлено"
             )
         ]
+        self.submissionDeadline = nil
         self.createdAt = createdAt
         self.updatedAt = createdAt
     }
