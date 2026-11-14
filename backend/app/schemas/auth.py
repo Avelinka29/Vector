@@ -26,6 +26,10 @@ class LoginRequest(BaseModel):
         return value
 
 
+class GoogleLoginRequest(BaseModel):
+    id_token: str = Field(min_length=1, max_length=16384)
+    role: UserRole = UserRole.APPLICANT
+
 
 class RefreshRequest(BaseModel):
     refresh_token: str

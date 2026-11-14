@@ -126,7 +126,7 @@ async def consume_action_token(
         select(ActionToken).where(
             ActionToken.digest == token_digest(plain_token),
             ActionToken.purpose == purpose,
-        )
+        ).with_for_update()
     )
     now = datetime.now(UTC)
     if stored is None or stored.used_at is not None or stored.expires_at.replace(tzinfo=UTC) <= now:

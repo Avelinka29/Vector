@@ -1,0 +1,23 @@
+[
+  {
+    "institution_ids": ["grsu", "abiturient_e9f0edc100ad7c"],
+    "source_url": "https://abit.grsu.by/itogi-priema-proshlykh-let.html",
+    "checked_at": "2026-11-09",
+    "fields": {
+      "admissions_phone": "+375 (152) 67-01-01, +375 (33) 35 44 500, +375 (25) 77 44 500",
+      "admissions_url": "https://abit.grsu.by/"
+    }
+  },
+  {
+    "institution_ids": ["abiturient_382c4cc9e44fd6", "ripo_b768aa4219a08a"],
+    "source_url": "https://abiturient.bgaa.by/node/kontakty-priyomnoy-komissii",
+    "checked_at": "2026-11-09",
+    "fields": {
+      "address": "220096, г. Минск, ул. Уборевича, 77",
+      "admissions_phone": "+375 17 378-32-81, +375 29 608-61-96",
+      "admissions_email": "abiturient@bgaa.by",
+      "website_url": "https://bgaa.by/",
+      "admissions_url": "https://abiturient.bgaa.by/"
+    }
+  }
+]

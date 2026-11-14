@@ -8,11 +8,12 @@ import argparse
 import asyncio
 import json
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 from sqlalchemy.dialects.postgresql import insert
 
-from app.core.database import session_factory
+from app.core.database import SessionFactory
 from app.models.catalog import EducationPassingScore
 
 
@@ -28,8 +29,8 @@ def validated_rows(path: Path) -> list[dict]:
             raise ValueError(f"Строка {index}: отсутствуют {', '.join(sorted(missing))}")
         if not str(item["source_url"]).startswith("https://"):
             raise ValueError(f"Строка {index}: источник должен использовать HTTPS")
-        score = int(item["score"])
-        if score < 0 or score > 400:
+        score = Decimal(str(item["score"]))
+        if not score.is_finite() or score < 0 or score > 400 or score != score.quantize(Decimal("0.01")):
             raise ValueError(f"Строка {index}: балл должен быть от 0 до 400")
         verified_at = date.fromisoformat(str(item["verified_at"]))
         study_form = str(item.get("study_form", ""))
@@ -53,7 +54,7 @@ def validated_rows(path: Path) -> list[dict]:
 
 
 async def import_rows(rows: list[dict]) -> None:
-    async with session_factory() as session:
+    async with SessionFactory() as session:
         statement = insert(EducationPassingScore).values(rows)
         statement = statement.on_conflict_do_update(
             constraint="education_passing_scores_identity_key",

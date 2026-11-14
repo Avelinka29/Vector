@@ -23,16 +23,26 @@ services:
       VECTOR_SMTP_USERNAME: ${VECTOR_SMTP_USERNAME:-}
       VECTOR_SMTP_PASSWORD: ${VECTOR_SMTP_PASSWORD:-}
       VECTOR_SMTP_FROM_EMAIL: ${VECTOR_SMTP_FROM_EMAIL:-support@vector.by}
+      VECTOR_SMTP_USE_SSL: ${VECTOR_SMTP_USE_SSL:-false}
       VECTOR_SMTP_USE_TLS: ${VECTOR_SMTP_USE_TLS:-true}
+      VECTOR_EMAIL_TRANSPORT: ${VECTOR_EMAIL_TRANSPORT:-smtp}
+      VECTOR_GMAIL_CLIENT_ID: ${VECTOR_GMAIL_CLIENT_ID:-}
+      VECTOR_GMAIL_CLIENT_SECRET: ${VECTOR_GMAIL_CLIENT_SECRET:-}
+      VECTOR_GMAIL_REFRESH_TOKEN: ${VECTOR_GMAIL_REFRESH_TOKEN:-}
+      VECTOR_PUBLIC_APP_URL: ${VECTOR_PUBLIC_APP_URL:-vector://auth}
       VECTOR_OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       VECTOR_OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openrouter/free}
       VECTOR_OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
       VECTOR_OPENROUTER_APP_NAME: ${OPENROUTER_APP_NAME:-VECTOR}
+      VECTOR_UPLOAD_DIRECTORY: /data/uploads
+      VECTOR_FIREBASE_SERVICE_ACCOUNT_PATH: ${FIREBASE_SERVICE_ACCOUNT_PATH:-}
+      VECTOR_GOOGLE_CLIENT_ID: ${VECTOR_GOOGLE_CLIENT_ID:-453479315586-aggsuevujhv59oekauhc2tr8s5fio97l.apps.googleusercontent.com}
     ports:
       - "8002:8000"
     volumes:
       - ../institutions.seed.json:/data/institutions.seed.json:ro
       - ../specialties.seed.json:/data/specialties.seed.json:ro
+      - vector_uploads:/data/uploads
     depends_on:
       postgres:
         condition: service_healthy
@@ -54,6 +64,7 @@ services:
       retries: 10
 
 volumes:
+  vector_uploads:
   vector_postgres_data:
     name: backend_vector_postgres_data
     external: true

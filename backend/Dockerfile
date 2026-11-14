@@ -10,6 +10,8 @@ RUN pip install --no-cache-dir \
     "asyncpg>=0.30,<1" \
     "email-validator>=2.2,<3" \
     "fastapi>=0.115,<1" \
+    "firebase-admin>=6.6,<8" \
+    "google-auth[requests]>=2.38,<3" \
     "httpx>=0.28,<1" \
     "pwdlib[argon2]>=0.2,<1" \
     "pydantic-settings>=2.7,<3" \

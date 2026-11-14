@@ -1,7 +1,7 @@
 from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 
-import aiosmtplib
+from app.services.email import deliver_message, mail_configured
 from sqlalchemy import or_, select
 
 from app.core.config import settings
@@ -16,11 +16,13 @@ async def queue_verification(session, user) -> None:
         session, user, ActionTokenPurpose.VERIFY_EMAIL, timedelta(hours=24), commit=False
     )
     link = f"{settings.web_app_url.rstrip('/')}/#verify-email?token={token}"
+    app_link = f"{settings.public_app_url.rstrip('/')}/verify-email?token={token}"
     session.add(EmailOutbox(
         recipient=user.email,
         subject="Подтвердите email учреждения — VECTOR",
         body=("Подтвердите рабочий email учреждения по ссылке:\n\n"
-              f"{link}\n\nСсылка действует 24 часа. После подтверждения заявку "
+              f"{link}\n\nОткрыть подтверждение в приложении VECTOR:\n{app_link}\n\n"
+              "Ссылка действует 24 часа. После подтверждения заявку "
               "рассмотрит администратор VECTOR в мобильном приложении. "
               "Если это были не вы, проигнорируйте письмо."),
     ))
@@ -43,7 +45,7 @@ def queue_decision(session, user, organization, status) -> None:
 
 
 async def deliver_pending() -> None:
-    if not settings.smtp_host:
+    if not mail_configured():
         return  # Keep queued; never claim delivery without a configured transport.
     async with SessionFactory() as session:
         now = datetime.now(UTC)
@@ -61,11 +63,7 @@ async def deliver_pending() -> None:
             message["Subject"] = item.subject
             message.set_content(item.body)
             try:
-                await aiosmtplib.send(
-                    message, hostname=settings.smtp_host, port=settings.smtp_port,
-                    username=settings.smtp_username or None, password=settings.smtp_password or None,
-                    start_tls=settings.smtp_use_tls, timeout=15,
-                )
+                await deliver_message(message)
                 item.sent_at = datetime.now(UTC)
                 item.last_error = ""
             except Exception as error:

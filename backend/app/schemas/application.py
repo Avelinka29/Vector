@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -13,7 +14,9 @@ class ApplicationCreate(BaseModel):
     study_form: str = Field(default="", max_length=100)
     funding_type: str = Field(default="budget", max_length=50)
     priority: int = Field(ge=1, le=20)
-    status: ApplicationStatus = ApplicationStatus.SUBMITTED
+    status: Literal[ApplicationStatus.DRAFT, ApplicationStatus.SUBMITTED] = (
+        ApplicationStatus.SUBMITTED
+    )
 
 
 class ApplicationPriorityUpdate(BaseModel):
@@ -34,6 +37,10 @@ class ApplicationStatusUpdate(BaseModel):
     comment: str | None = Field(default=None, max_length=2000)
 
 
+class ApplicationDeadlineUpdate(BaseModel):
+    submission_deadline: date | None = None
+
+
 class ApplicationResponse(BaseModel):
     id: UUID
     applicant_id: UUID
@@ -46,6 +53,7 @@ class ApplicationResponse(BaseModel):
     priority: int
     status: ApplicationStatus
     history: list[dict]
+    submission_deadline: date | None = None
     created_at: datetime
     updated_at: datetime
 

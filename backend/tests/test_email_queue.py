@@ -12,13 +12,16 @@ async def test_delivery_failure_keeps_message_for_retry(tmp_path, monkeypatch):
     async with engine.begin() as c:
         await c.run_sync(lambda sync: Base.metadata.create_all(sync, tables=[EmailOutbox.__table__]))
     monkeypatch.setattr(institution_email, 'SessionFactory', factory)
-    monkeypatch.setattr(institution_email.settings, 'smtp_host', 'smtp.test.invalid')
+    monkeypatch.setattr(institution_email.settings, 'email_transport', 'gmail')
+    monkeypatch.setattr(institution_email.settings, 'smtp_host', None)
+    for field in ['gmail_client_id', 'gmail_client_secret', 'gmail_refresh_token']:
+        monkeypatch.setattr(institution_email.settings, field, 'test-value')
     async with factory() as session:
         session.add(EmailOutbox(recipient='test@example.com', subject='Test', body='Test'))
         await session.commit()
     async def fail(*args, **kwargs):
         raise ConnectionError('Synthetic SMTP failure')
-    monkeypatch.setattr(institution_email.aiosmtplib, 'send', fail)
+    monkeypatch.setattr(institution_email, 'deliver_message', fail)
     await institution_email.deliver_pending()
     async with factory() as session:
         mail = (await session.scalars(select(EmailOutbox))).one()
@@ -29,7 +32,7 @@ async def test_delivery_failure_keeps_message_for_retry(tmp_path, monkeypatch):
         await session.commit()
     async def succeed(*args, **kwargs):
         return {}, 'Synthetic SMTP accepted'
-    monkeypatch.setattr(institution_email.aiosmtplib, 'send', succeed)
+    monkeypatch.setattr(institution_email, 'deliver_message', succeed)
     await institution_email.deliver_pending()
     async with factory() as session:
         mail = (await session.scalars(select(EmailOutbox))).one()

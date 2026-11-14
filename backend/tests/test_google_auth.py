@@ -26,7 +26,8 @@ async def google_client(tmp_path):
     app.dependency_overrides[get_session] = sessions
     try:
         async with httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://test/api/v1",
+            transport=httpx.ASGITransport(app=app),
+            base_url="http://test/api/v1",
         ) as client:
             yield client, factory
     finally:
@@ -36,31 +37,47 @@ async def google_client(tmp_path):
 
 async def test_google_registration_repeat_login_and_refresh(google_client):
     client, _ = google_client
-    claims = {"sub": "google-subject", "email": "new@gmail.com", "email_verified": True, "name": "New User"}
+    claims = {
+        "sub": "google-subject",
+        "email": "new@gmail.com",
+        "email_verified": True,
+        "name": "New User",
+    }
     with patch("app.services.google_auth.verify_google_token", return_value=claims):
-        first = await client.post("/auth/google", json={"id_token": "verified-by-mock"})
-        assert first.status_code == 200, first.text
-        repeated = await client.post("/auth/google", json={"id_token": "verified-by-mock", "role": "institution"})
+        first = await client.post("/auth/google/register", json={"id_token": "verified-by-mock"})
+        assert first.status_code == 201, first.text
+        repeated = await client.post(
+            "/auth/google", json={"id_token": "verified-by-mock", "role": "institution"}
+        )
     assert repeated.status_code == 200
     assert repeated.json()["user"]["id"] == first.json()["user"]["id"]
     assert repeated.json()["user"]["role"] == "applicant"
-    refreshed = await client.post("/auth/refresh", json={"refresh_token": first.json()["refresh_token"]})
+    refreshed = await client.post(
+        "/auth/refresh", json={"refresh_token": first.json()["refresh_token"]}
+    )
     assert refreshed.status_code == 200
     headers = {"Authorization": "Bearer " + refreshed.json()["access_token"]}
     assert (await client.get("/auth/me", headers=headers)).json()["email"] == "new@gmail.com"
 
 
-@pytest.mark.parametrize("email,blocked,expected", [
-    ("existing@gmail.com", False, 200),
-    ("existing@example.com", False, 409),
-    ("existing@gmail.com", True, 403),
-])
+@pytest.mark.parametrize(
+    "email,blocked,expected",
+    [
+        ("existing@gmail.com", False, 409),
+        ("existing@example.com", False, 409),
+        ("existing@gmail.com", True, 409),
+    ],
+)
 async def test_existing_account_linking(google_client, email, blocked, expected):
     client, factory = google_client
     async with factory() as session:
-        user = User(email=email, full_name="Existing", role=UserRole.EMPLOYER,
-                    status=UserStatus.BLOCKED if blocked else UserStatus.ACTIVE,
-                    email_verified=True)
+        user = User(
+            email=email,
+            full_name="Existing",
+            role=UserRole.EMPLOYER,
+            status=UserStatus.BLOCKED if blocked else UserStatus.ACTIVE,
+            email_verified=True,
+        )
         session.add(user)
         await session.commit()
         identifier = str(user.id)
@@ -77,23 +94,76 @@ async def test_google_rejects_privileged_role_and_invalid_token(google_client):
     client, _ = google_client
     response = await client.post("/auth/google", json={"id_token": "invalid", "role": "admin"})
     assert response.status_code == 400
-    with patch("app.services.google_auth.verify_google_token", side_effect=HTTPException(401, "Invalid")):
+    with patch(
+        "app.services.google_auth.verify_google_token", side_effect=HTTPException(401, "Invalid")
+    ):
         assert (await client.post("/auth/google", json={"id_token": "invalid"})).status_code == 401
 
 
 def test_verifier_checks_audience_and_email(monkeypatch):
     monkeypatch.setattr("app.services.google_auth.settings.google_client_id", "our-client")
-    with patch("app.services.google_auth.id_token.verify_oauth2_token", return_value={
-        "sub": "subject", "email": "new@gmail.com", "email_verified": True,
-    }) as verify:
+    with patch(
+        "app.services.google_auth.id_token.verify_oauth2_token",
+        return_value={
+            "sub": "subject",
+            "email": "new@gmail.com",
+            "email_verified": True,
+        },
+    ) as verify:
         assert verify_google_token("signed-token")["sub"] == "subject"
         assert verify.call_args.args[2] == "our-client"
-    with patch("app.services.google_auth.id_token.verify_oauth2_token", side_effect=ValueError("expired")):
+    with patch(
+        "app.services.google_auth.id_token.verify_oauth2_token", side_effect=ValueError("expired")
+    ):
         with pytest.raises(HTTPException) as error:
             verify_google_token("expired-token")
         assert error.value.status_code == 401
-    with patch("app.services.google_auth.id_token.verify_oauth2_token", return_value={
-        "sub": "subject", "email": "new@gmail.com", "email_verified": False,
-    }):
+    with patch(
+        "app.services.google_auth.id_token.verify_oauth2_token",
+        return_value={
+            "sub": "subject",
+            "email": "new@gmail.com",
+            "email_verified": False,
+        },
+    ):
         with pytest.raises(HTTPException):
             verify_google_token("unverified-email-token")
+
+
+async def test_login_does_not_register_or_link_and_registration_is_explicit(google_client):
+    from sqlalchemy import select
+    client, factory = google_client
+    claims = {"sub": "new-sub", "email": "new@gmail.com", "email_verified": True}
+    with patch("app.services.google_auth.verify_google_token", return_value=claims):
+        assert (await client.post("/auth/google", json={"id_token": "test"})).status_code == 409
+        async with factory() as session:
+            assert (await session.scalars(select(User))).all() == []
+        created = await client.post("/auth/google/register", json={"id_token": "test"})
+        assert created.status_code == 201
+        assert (await client.post("/auth/google/register", json={"id_token": "test"})).status_code == 409
+        async with factory() as session:
+            user = (await session.scalars(select(User))).one()
+            user.status = UserStatus.BLOCKED
+            await session.commit()
+        assert (await client.post("/auth/google", json={"id_token": "test"})).status_code == 403
+
+
+async def test_explicit_link_requires_session_and_matching_email(google_client):
+    from app.core.security import hash_password
+    client, factory = google_client
+    async with factory() as session:
+        session.add(User(email="link@gmail.com", full_name="Link User", role=UserRole.APPLICANT,
+                         status=UserStatus.ACTIVE, password_hash=hash_password("password123")))
+        await session.commit()
+    claims = {"sub": "link-sub", "email": "link@gmail.com", "email_verified": True}
+    body = {"id_token": "test"}
+    with patch("app.services.google_auth.verify_google_token", return_value=claims):
+        assert (await client.post("/auth/google/link", json=body)).status_code in {401, 403}
+        assert (await client.post("/auth/google/register", json=body)).status_code == 409
+        login = await client.post("/auth/login", json={"email": "link@gmail.com", "password": "password123"})
+        headers = {"Authorization": "Bearer " + login.json()["access_token"]}
+        claims["email"] = "other@gmail.com"
+        assert (await client.post("/auth/google/link", json=body, headers=headers)).status_code == 409
+        claims["email"] = "link@gmail.com"
+        assert (await client.post("/auth/google/link", json=body, headers=headers)).status_code == 200
+        assert (await client.post("/auth/google", json=body)).json()["user"]["id"] == login.json()["user"]["id"]

@@ -1,7 +1,9 @@
 from app.models.action_token import ActionToken
 from app.models.application import Application
+from app.models.assistant import AssistantChatMessage
 from app.models.catalog import (
     EducationCatalogMetadata,
+    EducationPassingScore,
     EducationImportIssue,
     EducationInstitution,
     EducationInstitutionSpecialty,
@@ -15,16 +17,25 @@ from app.models.organization import Organization, OrganizationMembership
 from app.models.profile import ApplicantProfile
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
+from app.models.workspace import (
+    ApplicationComment,
+    ApplicationDocument,
+    NotificationOutbox,
+    Vacancy,
+    VacancyResponse,
+)
 
 __all__ = [
     "ActionToken",
     "ApplicantProfile",
     "Application",
+    "AssistantChatMessage",
     "EducationInstitution",
     "EducationInstitutionSpecialty",
     "EducationSourceRecord",
     "EducationImportIssue",
     "EducationCatalogMetadata",
+    "EducationPassingScore",
     "EducationSpecialty",
     "DeviceToken",
     "EmailOutbox",
@@ -34,4 +45,9 @@ __all__ = [
     "OrganizationMembership",
     "RefreshToken",
     "User",
+    "ApplicationComment",
+    "ApplicationDocument",
+    "NotificationOutbox",
+    "Vacancy",
+    "VacancyResponse",
 ]

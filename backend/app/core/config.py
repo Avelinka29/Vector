@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_from_email: str = "support@vector.by"
     smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    email_transport: str = "smtp"
+    gmail_client_id: str = ""
+    gmail_client_secret: str = ""
+    gmail_refresh_token: str = ""
     web_app_url: str = "http://localhost:4173"
     public_app_url: str = "vector://auth"
     openrouter_api_key: str | None = None
@@ -34,6 +39,10 @@ class Settings(BaseSettings):
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_app_name: str = "VECTOR"
     assistant_timeout_seconds: float = 45.0
+    upload_directory: str = "/data/uploads"
+    max_upload_bytes: int = 10_485_760
+    firebase_service_account_path: str | None = None
+    google_client_id: str = ""
 
     @field_validator("allowed_origins", mode="before")
     @classmethod

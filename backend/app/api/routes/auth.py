@@ -15,6 +15,7 @@ from app.schemas.auth import (
     DeleteAccountRequest,
     EmailRequest,
     LoginRequest,
+    GoogleLoginRequest,
     LogoutRequest,
     MessageResponse,
     PasswordResetConfirmRequest,
@@ -37,6 +38,25 @@ from app.services.auth import (
 from app.services.email import send_action_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.post("/google", response_model=TokenResponse)
+async def sign_in_google(payload: GoogleLoginRequest, session: SessionDependency) -> TokenResponse:
+    from app.services.google_auth import google_login
+    return await google_login(session, payload.id_token, payload.role)
+
+
+@router.post("/google/register", response_model=TokenResponse, status_code=201)
+async def register_google(payload: GoogleLoginRequest, session: SessionDependency) -> TokenResponse:
+    from app.services.google_auth import google_login
+    return await google_login(session, payload.id_token, payload.role, register=True)
+
+
+@router.post("/google/link", response_model=MessageResponse)
+async def connect_google(payload: GoogleLoginRequest, user: CurrentUser, session: SessionDependency) -> MessageResponse:
+    from app.services.google_auth import link_google
+    await link_google(session, user, payload.id_token)
+    return MessageResponse(message="Google привязан")
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -123,7 +143,7 @@ async def request_email_verification(
         "Подтвердите адрес электронной почты",
         action_link("verify-email", token),
     )
-    return MessageResponse(message="Письмо отправлено", debug_token=development_token(token))
+    return MessageResponse(message="Письмо отправлено")
 
 
 @router.post("/email/verification/confirm", response_model=MessageResponse)
@@ -139,7 +159,6 @@ async def request_password_reset(
     payload: EmailRequest, session: SessionDependency
 ) -> MessageResponse:
     user = await find_user_by_email(session, payload.email)
-    debug_token = None
     if user is not None:
         token = await create_action_token(
             session, user, ActionTokenPurpose.RESET_PASSWORD, timedelta(minutes=30)
@@ -150,9 +169,8 @@ async def request_password_reset(
             "Установите новый пароль",
             action_link("reset-password", token),
         )
-        debug_token = development_token(token)
     return MessageResponse(
-        message="Если аккаунт существует, письмо отправлено", debug_token=debug_token
+        message="Если аккаунт существует, письмо отправлено"
     )
 
 

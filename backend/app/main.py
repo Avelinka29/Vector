@@ -21,13 +21,25 @@ async def lifespan(app: FastAPI):
             except Exception:
                 logging.getLogger(__name__).warning("Email queue temporarily unavailable")
             await asyncio.sleep(15)
+    async def push_worker():
+        from app.services.push import deliver_pending_pushes
+        while True:
+            try:
+                await deliver_pending_pushes()
+            except Exception:
+                logging.getLogger(__name__).warning("Push queue temporarily unavailable")
+            await asyncio.sleep(10)
     worker = asyncio.create_task(mail_worker())
+    push_task = asyncio.create_task(push_worker())
     try:
         yield
     finally:
         worker.cancel()
+        push_task.cancel()
         with suppress(asyncio.CancelledError):
             await worker
+        with suppress(asyncio.CancelledError):
+            await push_task
 
 
 app = FastAPI(

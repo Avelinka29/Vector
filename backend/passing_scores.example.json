@@ -1,0 +1,12 @@
+[
+  {
+    "institution_id": "official-institution-id",
+    "specialty_id": "official-specialty-id",
+    "admission_year": 2025,
+    "study_form": "очная",
+    "funding_type": "budget",
+    "score": 300,
+    "source_url": "https://official.example.by/admission/results",
+    "verified_at": "2026-10-27"
+  }
+]
