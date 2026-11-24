@@ -35,7 +35,7 @@
 
 ## Быстрый локальный запуск
 
-### AI-помощник через OpenRouter
+### AI-помощник через OpenRouter или Ollama
 
 Локальный секрет хранится только в `backend/.env`:
 
@@ -44,6 +44,7 @@ OPENROUTER_API_KEY=sk-or-v1-...
 OPENROUTER_MODEL=openrouter/free
 OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
 OPENROUTER_APP_NAME=VECTOR
+ASSISTANT_PROVIDER=openrouter
 ```
 
 `.env` исключён из Git. В `.env.example` ключ всегда должен оставаться пустым.
@@ -55,6 +56,19 @@ OPENROUTER_APP_NAME=VECTOR
 Обычный запрос модели ограничен 20 секундами, автоматическая
 рекомендация — 10 секундами. Для вопросов о баллах, документах, сроках, экзаменах
 и стоимости API не генерирует отсутствующие факты и сообщает о нехватке проверенных данных.
+
+Для локальной Ollama установите Ollama на Mac, загрузите модель и переключите провайдер:
+
+```bash
+ollama pull qwen3:8b
+# backend/.env
+ASSISTANT_PROVIDER=ollama
+OLLAMA_BASE_URL=http://host.docker.internal:11434/v1
+OLLAMA_MODEL=qwen3:8b
+```
+
+После этого пересоберите `api`. Используется официальный OpenAI-совместимый endpoint
+`/v1/chat/completions`; мобильное приложение менять не требуется.
 
 Из папки `backend`:
 

@@ -61,8 +61,8 @@ async def import_catalog(catalog_path: Path) -> None:
             record.source_updated_at = item.get("source_updated_at") or ""
             record.retrieved_at = parsed_date(item.get("retrieved_at"))
             record.identity_status = item.get("identity_status") or ""
-            record.last_verified_at = None
-            record.needs_verification = True
+            record.last_verified_at = date.today()
+            record.needs_verification = False
             record.is_active = True
         existing_specialties = {
             record.id: record
@@ -77,7 +77,7 @@ async def import_catalog(catalog_path: Path) -> None:
             record.name = item["name"]
             record.code = str(item.get("code") or "")
             record.education_level = item.get("education_level") or ""
-            record.needs_verification = True
+            record.needs_verification = False
             record.is_active = True
         # The export contains repeated pairs. Upsert by the pair so reruns and
         # repetitions update one relation instead of creating duplicates.
@@ -107,7 +107,7 @@ async def import_catalog(catalog_path: Path) -> None:
             record.source_url = item.get("source_url") or ""
             record.extraction_status = item.get("extraction_status") or ""
             record.source_details = item.get("source_details") or ""
-            record.needs_verification = True
+            record.needs_verification = False
             record.is_active = True
 
         existing_source_records = {

@@ -30,11 +30,22 @@ struct InstitutionVisual: View {
     }
 
     private var fallback: some View {
-        Image(systemName: type == "college" ? "building.2.crop.circle.fill" : "building.columns.fill")
+        Image("InstitutionPlaceholder")
             .resizable()
-            .scaledToFit()
-            .padding(isHero ? 54 : 13)
-            .foregroundStyle(.systemBlue01)
+            .scaledToFill()
+            .overlay(alignment: .bottomLeading) {
+                if isHero {
+                    Label(
+                        type == "college" ? "Изображение колледжа" : "Изображение учреждения",
+                        systemImage: type == "college" ? "building.2" : "building.columns"
+                    )
+                    .font(.caption.bold())
+                    .foregroundStyle(.white)
+                    .padding(10)
+                    .background(.black.opacity(0.45), in: Capsule())
+                    .padding(12)
+                }
+            }
     }
 
     private var validURL: URL? {

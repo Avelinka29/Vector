@@ -41,7 +41,7 @@ async def profile_for(session, org, user):
     catalog_id = "organization-" + org.id.hex
     # Never match by name and never take ownership of an imported catalog entry.
     catalog = EducationInstitution(id=catalog_id, name=org.name, is_active=False,
-                                   identity_status="organization_confirmed", needs_verification=True)
+                                   identity_status="organization_confirmed", needs_verification=False)
     session.add(catalog)
     await session.flush()
     old_fields = dict(line.split(": ", 1) for line in org.description.splitlines() if ": " in line)
@@ -137,6 +137,7 @@ async def save_program(payload, access, user, session, program_id=None):
     specialty.education_level, specialty.qualification = program.education_level, program.qualification
     specialty.study_forms = [{"full_time": "Очная", "part_time": "Заочная", "distance": "Дистанционная"}[program.study_form]]
     specialty.is_active = program.status == "published"
+    specialty.needs_verification = False
     with session.no_autoflush:
         link = await session.get(EducationInstitutionSpecialty, (profile.catalog_institution_id, specialty.id))
     if not link:
@@ -145,6 +146,7 @@ async def save_program(payload, access, user, session, program_id=None):
     link.qualification = program.qualification
     link.is_active = specialty.is_active
     link.source_label = "Данные предоставлены учреждением"
+    link.needs_verification = False
     try:
         await session.commit()
     except IntegrityError as error:

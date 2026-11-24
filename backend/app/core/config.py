@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     openrouter_model: str = "openrouter/free"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_app_name: str = "VECTOR"
+    assistant_provider: str = "openrouter"
+    ollama_base_url: str = "http://host.docker.internal:11434/v1"
+    ollama_model: str = "qwen3:8b"
     assistant_timeout_seconds: float = 20.0
     assistant_recommendation_timeout_seconds: float = 10.0
     upload_directory: str = "/data/uploads"
@@ -45,6 +48,14 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 10_485_760
     firebase_service_account_path: str | None = None
     google_client_id: str = ""
+
+    @field_validator("assistant_provider")
+    @classmethod
+    def validate_assistant_provider(cls, value: str) -> str:
+        normalized = value.casefold().strip()
+        if normalized not in {"openrouter", "ollama"}:
+            raise ValueError("assistant_provider must be openrouter or ollama")
+        return normalized
 
     @field_validator("allowed_origins", mode="before")
     @classmethod

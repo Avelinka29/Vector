@@ -377,14 +377,22 @@ async def generate_answer(
     history: list[dict[str, str]] | None = None,
     timeout_seconds: float | None = None,
 ) -> str | None:
-    if not settings.openrouter_api_key:
-        return None
-
-    headers = {
-        "Authorization": f"Bearer {settings.openrouter_api_key}",
-        "Content-Type": "application/json",
-        "X-Title": settings.openrouter_app_name,
-    }
+    if settings.assistant_provider == "ollama":
+        api_key = "ollama"
+        base_url = settings.ollama_base_url
+        model = settings.ollama_model
+        headers = {"Authorization": "Bearer ollama", "Content-Type": "application/json"}
+    else:
+        if not settings.openrouter_api_key:
+            return None
+        api_key = settings.openrouter_api_key
+        base_url = settings.openrouter_base_url
+        model = settings.openrouter_model
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "X-Title": settings.openrouter_app_name,
+        }
     conversation = [{"role": "system", "content": SYSTEM_PROMPT}]
     conversation.extend((history or [])[-10:])
     conversation.append(
@@ -398,7 +406,7 @@ async def generate_answer(
         }
     )
     body = {
-        "model": settings.openrouter_model,
+        "model": model,
         "messages": conversation,
         "temperature": 0.2,
         "max_tokens": 1400,
@@ -409,7 +417,7 @@ async def generate_answer(
         async with asyncio.timeout(total_timeout):
             async with httpx.AsyncClient(timeout=total_timeout) as client:
                 response = await client.post(
-                    f"{settings.openrouter_base_url.rstrip('/')}/chat/completions",
+                    f"{base_url.rstrip('/')}/chat/completions",
                     headers=headers,
                     json=body,
                 )
