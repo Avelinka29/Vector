@@ -226,20 +226,65 @@ def catalog_context(
 
 
 def fallback_answer(
+    message: str,
     institutions: list[EducationInstitution],
     specialties: list[EducationSpecialty],
+    preferences: str = "Предпочтения пользователя не заполнены.",
 ) -> str:
-    sections: list[str] = ["Ответ ИИ сейчас недоступен. Ниже — результаты поиска по справочнику VECTOR."]
-    if institutions:
-        sections.append("Подходящие учреждения: " + "; ".join(item.name for item in institutions[:3]))
-    if specialties:
-        sections.append("Подходящие специальности: " + "; ".join(item.name for item in specialties[:3]))
-    if not institutions and not specialties:
-        sections.append(
-            "В справочнике не нашлось точного совпадения. Уточните город, полное название "
-            "учреждения или направление обучения."
+    normalized = message.casefold()
+    is_greeting = bool(re.fullmatch(r"[\s!,.]*(привет|здравствуй(?:те)?|добрый (?:день|вечер|утро))[\s!,.]*", normalized))
+    asks_why = any(word in normalized for word in ("почему", "чего")) and any(
+        word in normalized for word in ("предлож", "показ", "выбрал", "выбрала")
+    )
+
+    if is_greeting:
+        return (
+            "Привет! Я помогу выбрать учреждение и специальность, сравнить варианты и "
+            "подготовить план поступления. Что вам ближе: IT, техника, медицина, творчество "
+            "или другое направление? И в каком городе вы хотите учиться?"
         )
-    sections.append("Сведения могут требовать проверки по официальному источнику.")
+
+    if asks_why and institutions:
+        names = ", ".join(item.name for item in institutions[:2])
+        details = (
+            " В справочнике для этого запроса также найдены направления: "
+            + "; ".join(item.name for item in specialties[:3])
+            if specialties else ""
+        )
+        return (
+            f"Справедливый вопрос. Я не включил {names} в первый список, потому что тот список "
+            "был ограничен тремя вариантами и строился по данным профиля — это не означает, "
+            f"что учреждение вам не подходит.{details}\n\n"
+            "Чтобы сравнить его с предыдущими вариантами точнее, скажите, какое направление "
+            "вас интересует и что важнее: бюджет, город, форма обучения или проходной балл?"
+        )
+
+    if not institutions and not specialties:
+        if preferences == "Предпочтения пользователя не заполнены.":
+            return (
+                "Давайте подберём варианты вместе. Ответьте, пожалуйста, на три вопроса: "
+                "какие предметы или профессии вам интересны, в каком городе готовы учиться "
+                "и рассматриваете бюджет, платное или оба варианта? Если знаете результаты "
+                "экзаменов, тоже напишите их."
+            )
+        return (
+            "Я учёл данные профиля, но для уверенного совета нужно уточнение: какое направление "
+            "для вас приоритетно и готовы ли вы переехать? После этого я предложу несколько "
+            "конкретных вариантов для сравнения."
+        )
+
+    sections: list[str] = []
+    if institutions:
+        sections.append("Можно рассмотреть:\n" + "\n".join(
+            f"{index}. **{item.name}**" for index, item in enumerate(institutions[:3], 1)
+        ))
+    if specialties:
+        sections.append("Связанные направления: " + "; ".join(item.name for item in specialties[:3]))
+    sections.append(
+        "Что для вас важнее при выборе: конкретная специальность, город, бюджет или форма "
+        "обучения? Я уточню подбор и помогу сравнить варианты. Актуальные условия затем "
+        "проверим по официальным источникам."
+    )
     return "\n\n".join(sections)
 
 
@@ -450,7 +495,12 @@ async def chat(
         )
         is_generated = answer is not None
     if answer is None:
-        answer = fallback_answer(institutions, specialties)
+        answer = fallback_answer(
+            payload.message,
+            institutions,
+            specialties,
+            profile_preferences(applicant_profile),
+        )
 
     institution_ids = [item.id for item in institutions]
     specialty_ids = [item.id for item in specialties]

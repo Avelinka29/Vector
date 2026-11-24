@@ -809,6 +809,7 @@ struct OpportunitiesView: View {
                         icon: "building.columns"
                     )
                 }
+                .buttonStyle(.plain)
 
                 NavigationLink {
                     SpecialtiesSearchView(applicantID: applicantID)
@@ -819,8 +820,10 @@ struct OpportunitiesView: View {
                         icon: "book.closed"
                     )
                 }
+                .buttonStyle(.plain)
             }
             .padding(20)
+            .padding(.bottom, 100)
         }
         .background(.systemWhite)
         .toolbar(.hidden, for: .navigationBar)
@@ -879,7 +882,7 @@ struct OpportunitiesView: View {
     }
 
     private var recommendationCacheKey: String {
-        "vector.ai-recommendation.\(applicantID.isEmpty ? "anonymous" : applicantID)"
+        "vector.ai-recommendation.v2.\(applicantID.isEmpty ? "anonymous" : applicantID)"
     }
 
     private var cachedRecommendation: CachedAIRecommendation? {
@@ -975,7 +978,7 @@ private struct AIRecommendationCard: View {
                 Button("Попробовать ещё раз", action: onRetry)
                     .font(.subheadline.bold())
             } else if let recommendation {
-                Text(recommendation)
+                Text(markdown: recommendation)
                     .font(.subheadline)
                     .foregroundStyle(.systemDarkBlue)
                     .textSelection(.enabled)
@@ -1031,6 +1034,16 @@ private struct OpportunityCard: View {
     }
 }
 
+private extension Text {
+    init(markdown source: String) {
+        if let value = try? AttributedString(markdown: source) {
+            self.init(value)
+        } else {
+            self.init(source)
+        }
+    }
+}
+
 struct ProfileView: View {
     let profile: ApplicantProfile?
     let profileStatus: ProfileStatus
@@ -1043,6 +1056,7 @@ struct ProfileView: View {
     @State private var deletePassword = ""
     @State private var isDeletingAccount = false
     @State private var deleteError: String?
+    @State private var avatarImage: UIImage?
 
     var body: some View {
         ScrollView {
@@ -1050,9 +1064,13 @@ struct ProfileView: View {
                 ApplicantPageHeader(title: "Мой профиль", subtitle: "Всё важное для поступления", showsBell: false)
 
                 NavigationLink {
-                    AvatarEditorView()
+                    AvatarEditorView(userID: userID)
                 } label: {
-                    ApplicantProfileHero(profile: profile, profileStatus: profileStatus)
+                    ApplicantProfileHero(
+                        profile: profile,
+                        profileStatus: profileStatus,
+                        avatarImage: avatarImage
+                    )
                 }
                 .buttonStyle(.plain)
 
@@ -1133,12 +1151,18 @@ struct ProfileView: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: 48)
             }
+            .buttonStyle(.plain)
             }
             .padding(.horizontal, 24)
-            .padding(.bottom, 30)
+            .padding(.bottom, 120)
         }
         .background(.systemWhite)
         .toolbar(.hidden, for: .navigationBar)
+        .task(id: userID) { loadAvatar() }
+        .onReceive(NotificationCenter.default.publisher(for: .avatarDidChange)) { notification in
+            guard notification.object as? String == userID else { return }
+            loadAvatar()
+        }
         .sheet(isPresented: $showsDeleteAccount) {
             NavigationStack {
                 Form {
@@ -1183,6 +1207,15 @@ struct ProfileView: View {
         ]
         .filter { !$0.isEmpty }
         .joined(separator: " ")
+    }
+
+    @MainActor
+    private func loadAvatar() {
+        guard let data = try? LocalAvatarStorage.shared.load(userID: userID) else {
+            avatarImage = nil
+            return
+        }
+        avatarImage = UIImage(data: data)
     }
 
     private func deleteAccount() async {
@@ -1277,6 +1310,7 @@ private struct ApplicantMenuRow: View {
 private struct ApplicantProfileHero: View {
     let profile: ApplicantProfile?
     let profileStatus: ProfileStatus
+    let avatarImage: UIImage?
 
     private var initials: String {
         guard let profile else { return "—" }
@@ -1290,11 +1324,20 @@ private struct ApplicantProfileHero: View {
 
     var body: some View {
         HStack(spacing: 18) {
-            Text(initials.uppercased())
-                .font(.title.bold())
-                .foregroundStyle(.systemBlue01)
-                .frame(width: 72, height: 72)
-                .background(Color.systemBlue01.opacity(0.12), in: RoundedRectangle(cornerRadius: 22))
+            Group {
+                if let avatarImage {
+                    Image(uiImage: avatarImage)
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    Text(initials.uppercased())
+                        .font(.title.bold())
+                        .foregroundStyle(.systemBlue01)
+                }
+            }
+            .frame(width: 72, height: 72)
+            .background(Color.systemBlue01.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 22))
             VStack(alignment: .leading, spacing: 7) {
                 Text(name).font(.title3.bold()).foregroundStyle(.systemDarkBlue)
                 Text("Абитуриент").foregroundStyle(.secondary)

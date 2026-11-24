@@ -97,8 +97,22 @@ async def test_context_labels_ids_and_fallback_is_honest(catalog):
     found, specialties = await search_catalog("ГрГУ", catalog)
     context = catalog_context(found, specialties, [])
     assert "ID: grsu" in context and "ID: grsu-math" in context
-    assert "Ответ ИИ сейчас недоступен" in fallback_answer(found, specialties)
-    assert "точного совпадения" in fallback_answer([], [])
+    assert "Можно рассмотреть" in fallback_answer("Расскажи про ГрГУ", found, specialties)
+    assert "три вопроса" in fallback_answer("Помоги выбрать", [], [])
+
+
+async def test_fallback_continues_conversation_about_omitted_institution(catalog):
+    found, specialties = await search_catalog("Почему ты не предложил БГУИР?", catalog)
+    answer = fallback_answer("Почему ты не предложил БГУИР?", found, specialties)
+    assert "не означает" in answer
+    assert "БГУИР" in answer or "информатики и радиоэлектроники" in answer
+    assert "что важнее" in answer
+
+
+def test_fallback_greeting_asks_about_interests():
+    answer = fallback_answer("Привет!", [], [])
+    assert "Что вам ближе" in answer
+    assert "городе" in answer
 
 
 async def test_no_arbitrary_results_for_generic_or_unknown_question(catalog):

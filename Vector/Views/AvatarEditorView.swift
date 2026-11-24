@@ -1,4 +1,3 @@
-import FirebaseAuth
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -55,7 +54,9 @@ final class LocalAvatarStorage: AvatarStorage {
     }
 }
 
+@MainActor
 struct AvatarEditorView: View {
+    let userID: String
     @State private var selectedItem: PhotosPickerItem?
     @State private var avatarImage: UIImage?
     @State private var isProcessing = false
@@ -64,11 +65,18 @@ struct AvatarEditorView: View {
 
     private let storage: any AvatarStorage
 
-    init(storage: any AvatarStorage = LocalAvatarStorage.shared) {
+    init(userID: String) {
+        self.userID = userID
+        self.storage = LocalAvatarStorage.shared
+    }
+
+    init(userID: String, storage: any AvatarStorage) {
+        self.userID = userID
         self.storage = storage
     }
 
     var body: some View {
+        let pickerTitle = avatarImage == nil ? "Выбрать фотографию" : "Заменить фотографию"
         Form {
             Section {
                 VStack(spacing: 18) {
@@ -76,7 +84,7 @@ struct AvatarEditorView: View {
 
                     PhotosPicker(selection: $selectedItem, matching: .images) {
                         Label(
-                            avatarImage == nil ? "Выбрать фотографию" : "Заменить фотографию",
+                            pickerTitle,
                             systemImage: "photo.on.rectangle"
                         )
                         .frame(maxWidth: .infinity)
@@ -154,7 +162,6 @@ struct AvatarEditorView: View {
 
     @MainActor
     private func loadAvatar() {
-        guard let userID else { return }
         do {
             if let data = try storage.load(userID: userID) {
                 avatarImage = UIImage(data: data)
@@ -174,14 +181,14 @@ struct AvatarEditorView: View {
                 let sourceData = try await item.loadTransferable(type: Data.self),
                 let sourceImage = UIImage(data: sourceData),
                 let croppedImage = sourceImage.centerSquareImage(maxPixelSize: 1024),
-                let encoded = croppedImage.jpegData(compressionQuality: 0.86),
-                let userID
+                let encoded = croppedImage.jpegData(compressionQuality: 0.86)
             else {
                 throw AvatarError.invalidImage
             }
 
             try storage.save(encoded, userID: userID)
             avatarImage = croppedImage
+            NotificationCenter.default.post(name: .avatarDidChange, object: userID)
             errorMessage = nil
         } catch {
             errorMessage = "Не удалось сохранить фотографию: \(error.localizedDescription)"
@@ -191,19 +198,20 @@ struct AvatarEditorView: View {
 
     @MainActor
     private func deleteAvatar() {
-        guard let userID else { return }
         do {
             try storage.delete(userID: userID)
             avatarImage = nil
+            NotificationCenter.default.post(name: .avatarDidChange, object: userID)
             errorMessage = nil
         } catch {
             errorMessage = "Не удалось удалить аватар: \(error.localizedDescription)"
         }
     }
 
-    private var userID: String? {
-        Auth.auth().currentUser?.uid
-    }
+}
+
+extension Notification.Name {
+    static let avatarDidChange = Notification.Name("vector.avatarDidChange")
 }
 
 private enum AvatarError: LocalizedError {
@@ -238,6 +246,6 @@ private extension UIImage {
 
 #Preview {
     NavigationStack {
-        AvatarEditorView()
+        AvatarEditorView(userID: "preview-user")
     }
 }
