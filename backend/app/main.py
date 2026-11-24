@@ -1,16 +1,21 @@
 import asyncio
 import logging
+from pathlib import Path
 from contextlib import asynccontextmanager, suppress
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from app.api.router import api_router
 from app.core.config import settings
+from app.core.database import engine
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    Path(settings.catalog_image_directory).mkdir(parents=True, exist_ok=True)
     if settings.environment == "production" and settings.jwt_secret.startswith("development-"):
         raise RuntimeError("Set a secure VECTOR_JWT_SECRET before running in production")
     async def mail_worker():
@@ -56,9 +61,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.mount(
+    "/catalog-images",
+    StaticFiles(directory=settings.catalog_image_directory, check_dir=False),
+    name="catalog-images",
+)
 app.include_router(api_router)
 
 
 @app.get("/health", tags=["system"])
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/ready", tags=["system"])
+async def readiness() -> dict[str, str]:
+    try:
+        async with engine.connect() as connection:
+            await connection.execute(text("SELECT 1"))
+        image_directory = Path(settings.catalog_image_directory)
+        image_directory.mkdir(parents=True, exist_ok=True)
+        if not image_directory.is_dir():
+            raise RuntimeError("Catalog image storage is unavailable")
+    except Exception as error:
+        logging.getLogger(__name__).error("Readiness check failed: %s", type(error).__name__)
+        raise HTTPException(status_code=503, detail="Service dependencies are unavailable") from error
+    return {"status": "ready", "database": "ok", "catalog_storage": "ok"}

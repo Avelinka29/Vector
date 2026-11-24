@@ -12,6 +12,8 @@ class SpecialtyResponse(BaseModel):
     qualification: str
     study_forms: list[str]
     source_url: str
+    image_url: str
+    image_source_url: str
     last_verified_at: date | None
     needs_verification: bool
 
@@ -35,6 +37,8 @@ class InstitutionResponse(BaseModel):
     admissions_email: str
     admissions_url: str
     source_url: str
+    image_url: str
+    image_source_url: str
     last_verified_at: date | None
     needs_verification: bool
 
@@ -55,3 +59,25 @@ class PassingScoreResponse(BaseModel):
     verified_at: date
 
     model_config = {"from_attributes": True}
+
+
+class CatalogBreakdownItem(BaseModel):
+    label: str
+    count: int
+
+
+class PassingScoreYearItem(BaseModel):
+    year: int
+    count: int
+
+
+class CatalogAnalyticsResponse(BaseModel):
+    institutions: int
+    specialties: int
+    programs: int
+    passing_scores: int
+    verified_institutions: int
+    institutions_with_images: int
+    institution_types: list[CatalogBreakdownItem]
+    leading_cities: list[CatalogBreakdownItem]
+    passing_score_years: list[PassingScoreYearItem]

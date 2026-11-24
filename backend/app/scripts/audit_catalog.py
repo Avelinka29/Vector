@@ -15,7 +15,7 @@ from app.models.catalog import EducationImportIssue, EducationInstitution, Educa
 
 
 async def audit(output: Path):
-    fields = ('address', 'admissions_phone', 'admissions_email', 'website_url')
+    fields = ('address', 'admissions_phone', 'admissions_email', 'admissions_url', 'website_url', 'image_url')
     missing = Counter()
     duplicates = defaultdict(list)
     rows = []
@@ -26,7 +26,7 @@ async def audit(output: Path):
             .where(EducationSpecialty.is_active.is_(True)).order_by(EducationSpecialty.id))).all())
         issues = list((await session.scalars(select(EducationImportIssue))).all())
         for item in institutions:
-            gaps = [field for field in fields if not getattr(item, field).strip()]
+            gaps = [field for field in fields if not (getattr(item, field) or '').strip()]
             missing.update(gaps)
             if gaps:
                 rows.append([item.id, item.name, ';'.join(gaps), item.source_url])
@@ -37,6 +37,10 @@ async def audit(output: Path):
             'active_institutions': len(institutions), 'active_specialties': len(specialties),
             'missing_contacts': dict(missing),
             'institutions_requiring_verification': sum(item.needs_verification for item in institutions),
+            'institutions_with_verified_source_date': sum(item.last_verified_at is not None for item in institutions),
+            'institutions_without_deduplicated_identity': sum(
+                item.identity_status == 'source_entry_not_deduplicated' for item in institutions
+            ),
             'specialties_without_code': [{'id': item.id, 'name': item.name, 'source_url': item.source_url}
                                          for item in specialties if not item.code.strip()],
             'possible_duplicate_institutions': {name: ids for name, ids in duplicates.items() if len(ids) > 1},

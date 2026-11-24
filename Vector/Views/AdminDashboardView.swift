@@ -37,11 +37,12 @@ private enum AdminTab: Hashable {
 }
 
 private struct AdminOverviewView: View {
-    @State private var model = AdminInstitutionsViewModel()
+    @State private var overview: AdminPlatformOverview?
+    @State private var errorMessage: String?
     let openModeration: () -> Void
 
     private var pendingCount: Int {
-        model.institutions.filter { $0.requiresVerification == true }.count
+        overview?.pending ?? 0
     }
 
     var body: some View {
@@ -54,18 +55,18 @@ private struct AdminOverviewView: View {
                     )
 
                     HStack(spacing: 12) {
-                        AdminMetricCard(value: "—", title: "Пользователей")
-                        AdminMetricCard(value: "\(model.institutions.count)", title: "Учреждений")
-                        AdminMetricCard(value: "—", title: "Компаний")
+                        AdminMetricCard(value: overview.map { String($0.users) } ?? "—", title: "Аккаунтов")
+                        AdminMetricCard(value: overview.map { String($0.institutions) } ?? "—", title: "Учреждений")
+                        AdminMetricCard(value: overview.map { String($0.companies) } ?? "—", title: "Компаний")
                     }
 
                     Button(action: openModeration) {
                         HStack {
                             VStack(alignment: .leading, spacing: 7) {
-                                Text("\(pendingCount) записей требуют проверки")
+                                Text(overview == nil ? "Загрузка заявок…" : "\(pendingCount) заявок требуют проверки")
                                     .font(.headline)
                                     .foregroundStyle(.systemDarkBlue)
-                                Text("Учреждения и сведения справочника")
+                                Text("Работодатели и учреждения образования")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
@@ -79,7 +80,7 @@ private struct AdminOverviewView: View {
                     }
                     .buttonStyle(.plain)
 
-                    AdminRegistrationsChart()
+
 
                     Text("Быстрые действия")
                         .font(.title2.bold())
@@ -88,29 +89,42 @@ private struct AdminOverviewView: View {
                     Button(action: openModeration) {
                         AdminActionRow(
                             icon: "building.2",
-                            title: "Модерация учреждений",
-                            subtitle: "\(pendingCount) записей ожидают проверки"
+                            title: "Модерация организаций",
+                            subtitle: "\(pendingCount) заявок ожидают проверки"
                         )
                     }
                     .buttonStyle(.plain)
 
-                    Label("Все сервисы работают штатно", systemImage: "checkmark.circle.fill")
-                        .font(.subheadline)
-                        .foregroundStyle(.green)
+                    if let errorMessage {
+                        Text(errorMessage).foregroundStyle(.red)
+                        Button("Повторить") { Task { await loadOverview() } }
+                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 30)
             }
             .background(.systemWhite)
             .toolbar(.hidden, for: .navigationBar)
-            .task { await model.load() }
-            .refreshable { await model.load() }
+            .task { await loadOverview() }
+            .refreshable { await loadOverview() }
+        }
+    }
+    private func loadOverview() async {
+        do {
+            let result: AdminPlatformOverview = try await BackendAPIClient.shared.request(
+                "/api/v1/admin/overview", authorized: true
+            )
+            try Task.checkCancellation()
+            overview = result
+            errorMessage = nil
+        } catch {
+            guard !Task.isCancelled else { return }
+            errorMessage = error.localizedDescription
         }
     }
 }
 
 private struct AdminModerationView: View {
-    @State private var model = AdminInstitutionsViewModel()
     @State private var organizationModel = OrganizationModerationViewModel()
     @State private var category = ModerationCategory.organizations
 
@@ -140,7 +154,7 @@ private struct AdminModerationView: View {
                         } else if organizationModel.pendingOrganizations.isEmpty {
                             AdminEmptyState(
                                 icon: "checkmark.shield",
-                                title: "Всё проверено",
+                                title: "Нет заявок на проверку",
                                 message: "Новых заявок организаций пока нет."
                             )
                         } else {
@@ -163,17 +177,6 @@ private struct AdminModerationView: View {
                                 }
                             }
                         }
-                    } else if category == .reports {
-                        NavigationLink {
-                            AdminReportReviewView()
-                        } label: {
-                            AdminActionRow(
-                                icon: "exclamationmark.bubble",
-                                title: "Обращение № 0142",
-                                subtitle: "Жалоба на вакансию · Требует решения"
-                            )
-                        }
-                        .buttonStyle(.plain)
                     } else {
                         AdminEmptyState(
                             icon: "doc.text",
@@ -199,14 +202,10 @@ private struct AdminModerationView: View {
             .background(.systemWhite)
             .toolbar(.hidden, for: .navigationBar)
             .task {
-                async let loadCatalog: Void = model.load()
-                async let loadApplications: Void = organizationModel.load()
-                _ = await (loadCatalog, loadApplications)
+                await organizationModel.load()
             }
             .refreshable {
-                async let loadCatalog: Void = model.load()
-                async let loadApplications: Void = organizationModel.load()
-                _ = await (loadCatalog, loadApplications)
+                await organizationModel.load()
             }
         }
     }
@@ -374,41 +373,100 @@ private struct AdminOrganizationReviewView: View {
 private struct AdminParticipantsView: View {
     @State private var searchText = ""
     @State private var category = ParticipantCategory.users
+    @State private var participants: [AdminParticipant] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+    @State private var hasMore = false
+    @State private var requestID = UUID()
+
+    private var queryKey: String { category.rawValue + "|" + searchText }
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    AdminHeader(title: "Участники платформы", subtitle: "Аккаунты и организации")
-
+                    AdminHeader(title: "Участники платформы", subtitle: "Абитуриенты и зарегистрированные организации")
                     HStack(spacing: 12) {
                         Image(systemName: "magnifyingglass")
                         TextField("Имя, организация или email", text: $searchText)
                     }
-                    .foregroundStyle(.secondary)
                     .padding(18)
                     .background(AdminPalette.surface, in: RoundedRectangle(cornerRadius: 16))
 
                     Picker("Тип участника", selection: $category) {
-                        ForEach(ParticipantCategory.allCases) { category in
-                            Text(category.title).tag(category)
+                        ForEach(ParticipantCategory.allCases) { item in
+                            Text(item.title).tag(item)
                         }
                     }
                     .pickerStyle(.segmented)
 
-                    AdminEmptyState(
-                        icon: "person.2",
-                        title: "Список пока недоступен",
-                        message: "Подключите административный источник аккаунтов, чтобы управлять участниками."
-                    )
-
-                    AdminActionRow(icon: "scope", title: "Расширенный поиск", subtitle: "Роль, статус и дата регистрации")
+                    if let errorMessage {
+                        Text(errorMessage).foregroundStyle(.red)
+                        Button("Повторить") { Task { await load(reset: true) } }
+                    }
+                    if isLoading && participants.isEmpty {
+                        ProgressView("Загрузка участников…")
+                    } else if participants.isEmpty && errorMessage == nil {
+                        AdminEmptyState(icon: "person.2", title: "Участники не найдены",
+                                        message: "Измените поиск или выберите другую категорию.")
+                    }
+                    LazyVStack(alignment: .leading, spacing: 12) {
+                        ForEach(participants) { participant in
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(participant.name).font(.headline)
+                                Text(participant.email).font(.subheadline).foregroundStyle(.secondary)
+                                Text(participant.statusTitle).font(.caption)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(18)
+                            .background(AdminPalette.surface, in: RoundedRectangle(cornerRadius: 16))
+                        }
+                    }
+                    if hasMore {
+                        Button(isLoading ? "Загрузка…" : "Показать ещё") {
+                            Task { await load(reset: false) }
+                        }
+                        .disabled(isLoading)
+                    }
                 }
                 .padding(.horizontal, 24)
                 .padding(.bottom, 30)
             }
             .background(.systemWhite)
             .toolbar(.hidden, for: .navigationBar)
+            .task(id: queryKey) { await load(reset: true) }
+            .refreshable { await load(reset: true) }
+        }
+    }
+
+    private func load(reset: Bool) async {
+        let identifier = UUID()
+        requestID = identifier
+        let key = queryKey
+        if reset {
+            participants = []
+            hasMore = false
+        }
+        isLoading = true
+        errorMessage = nil
+        defer { if requestID == identifier { isLoading = false } }
+        do {
+            let page: AdminParticipantsPage = try await BackendAPIClient.shared.request(
+                "/api/v1/admin/participants",
+                queryItems: [
+                    URLQueryItem(name: "category", value: category.rawValue),
+                    URLQueryItem(name: "search", value: searchText),
+                    URLQueryItem(name: "offset", value: String(participants.count))
+                ],
+                authorized: true
+            )
+            try Task.checkCancellation()
+            guard requestID == identifier, queryKey == key else { return }
+            participants.append(contentsOf: page.items)
+            hasMore = page.hasMore
+        } catch {
+            guard !Task.isCancelled, requestID == identifier, queryKey == key else { return }
+            errorMessage = error.localizedDescription
         }
     }
 }
@@ -423,7 +481,7 @@ private enum ParticipantCategory: String, CaseIterable, Identifiable {
         switch self {
         case .users: "Пользователи"
         case .companies: "Компании"
-        case .universities: "Вузы"
+        case .universities: "Учреждения"
         }
     }
 }

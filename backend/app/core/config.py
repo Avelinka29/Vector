@@ -38,8 +38,10 @@ class Settings(BaseSettings):
     openrouter_model: str = "openrouter/free"
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
     openrouter_app_name: str = "VECTOR"
-    assistant_timeout_seconds: float = 45.0
+    assistant_timeout_seconds: float = 20.0
+    assistant_recommendation_timeout_seconds: float = 10.0
     upload_directory: str = "/data/uploads"
+    catalog_image_directory: str = "data/catalog-images"
     max_upload_bytes: int = 10_485_760
     firebase_service_account_path: str | None = None
     google_client_id: str = ""

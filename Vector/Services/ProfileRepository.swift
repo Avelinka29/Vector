@@ -107,13 +107,3 @@ private extension ApplicantProfile {
         return copy
     }
 }
-
-protocol DocumentUploading {
-    func upload(document: ProfileDocument) async throws -> ProfileDocument
-}
-
-struct PendingDocumentUploader: DocumentUploading {
-    func upload(document: ProfileDocument) async throws -> ProfileDocument {
-        document
-    }
-}

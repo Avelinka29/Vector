@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.routes import applications, assistant, auth, catalog, employer_workspace, notifications, organizations, profile
+from app.api.routes import admin, applications, assistant, auth, catalog, employer_workspace, notifications, organizations, profile
 from app.api.routes import institution_registration, institution_workspace
 
 api_router = APIRouter(prefix="/api/v1")
@@ -14,3 +14,5 @@ api_router.include_router(applications.router)
 api_router.include_router(notifications.router)
 api_router.include_router(employer_workspace.router)
 api_router.include_router(assistant.router)
+
+api_router.include_router(admin.router)

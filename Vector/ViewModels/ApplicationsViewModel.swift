@@ -62,6 +62,10 @@ final class ApplicationsViewModel {
         studyForm: String,
         fundingType: String
     ) async throws {
+        // NewApplicationView can be opened without the list screen's model.
+        // Read the server state before assigning a priority so the second and
+        // subsequent applications do not all attempt to use priority 1.
+        applications = try await repository.fetch(for: applicantID)
         let nextPriority = (applications.map(\.priority).max() ?? 0) + 1
         let application = ApplicationRecord(
             applicantID: applicantID,

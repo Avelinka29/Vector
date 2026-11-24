@@ -170,6 +170,113 @@ async def test_profile_application_decision_and_notification(journey):
     assert read.status_code == 200 and read.json()["is_read"]
 
 
+async def test_applicant_can_apply_to_multiple_institutions_and_reorder_priorities(journey):
+    client, owners, applicant, first_payload, _ = journey
+    second_workspace = await client.get("/institutions/workspace", headers=owners[1])
+    assert second_workspace.status_code == 200, second_workspace.text
+    second_institution_id = second_workspace.json()["profile"]["catalog_institution_id"]
+    published = await client.put(
+        "/institutions/workspace/profile",
+        headers=owners[1],
+        json={
+            "city": "Гродно",
+            "address": "Адрес 2",
+            "phone": "987654321",
+            "email": "second-admissions@example.com",
+            "published": True,
+            "revision": 0,
+        },
+    )
+    assert published.status_code == 200, published.text
+    second_program = await client.post(
+        "/institutions/workspace/programs",
+        headers=owners[1],
+        json={
+            "name": "Прикладная математика",
+            "code": "6-06",
+            "duration": 4,
+            "budget_places": 20,
+            "paid_places": 10,
+            "revision": 0,
+            "status": "published",
+        },
+    )
+    assert second_program.status_code == 201, second_program.text
+
+    first = await client.post("/applications", headers=applicant, json=first_payload)
+    second = await client.post(
+        "/applications",
+        headers=applicant,
+        json={
+            "institution_id": second_institution_id,
+            "specialty_id": second_program.json()["specialty_id"],
+            "priority": 2,
+        },
+    )
+    assert first.status_code == 201, first.text
+    assert second.status_code == 201, second.text
+    assert first.json()["institution_id"] != second.json()["institution_id"]
+
+    reordered = await client.put(
+        "/applications/priorities",
+        headers=applicant,
+        json={
+            "applications": [
+                {"id": second.json()["id"], "priority": 1},
+                {"id": first.json()["id"], "priority": 2},
+            ]
+        },
+    )
+    assert reordered.status_code == 200, reordered.text
+    assert [item["id"] for item in reordered.json()] == [
+        second.json()["id"],
+        first.json()["id"],
+    ]
+    listed = await client.get("/applications", headers=applicant)
+    assert [item["priority"] for item in listed.json()] == [1, 2]
+    assert [item["id"] for item in listed.json()] == [
+        second.json()["id"],
+        first.json()["id"],
+    ]
+
+    swapped = await client.patch(
+        f"/applications/{first.json()['id']}/priority",
+        headers=applicant,
+        json={"priority": 1},
+    )
+    assert swapped.status_code == 200, swapped.text
+    listed_after_swap = (await client.get("/applications", headers=applicant)).json()
+    assert [(item["id"], item["priority"]) for item in listed_after_swap] == [
+        (first.json()["id"], 1),
+        (second.json()["id"], 2),
+    ]
+
+
+async def test_public_catalog_analytics_reflects_published_data(journey):
+    client, _, _, payload, _ = journey
+    analytics = await client.get("/catalog/analytics")
+    assert analytics.status_code == 200, analytics.text
+    data = analytics.json()
+    assert data["institutions"] == 1
+    assert data["specialties"] >= 1
+    assert data["programs"] >= 1
+    assert data["passing_scores"] == 0
+    assert data["leading_cities"] == [{"label": "Минск", "count": 1}]
+
+
+async def test_specialty_search_treats_wildcards_as_literal_text(journey):
+    client, _, _, payload, _ = journey
+    all_rows = await client.get(f"/catalog/institutions/{payload['institution_id']}/specialties")
+    literal_percent = await client.get(
+        f"/catalog/institutions/{payload['institution_id']}/specialties",
+        params={"search": "%"},
+    )
+    assert all_rows.status_code == 200
+    assert len(all_rows.json()) == 1
+    assert literal_percent.status_code == 200
+    assert literal_percent.json() == []
+
+
 async def test_same_name_organization_cannot_access_application(journey):
     client, owners, applicant, payload, _ = journey
     created = await client.post("/applications", headers=applicant, json=payload)

@@ -53,7 +53,7 @@ nonisolated enum AssistantService {
             method: "POST",
             body: AssistantRequest(message: message, history: history),
             authorized: true,
-            timeoutInterval: 55
+            timeoutInterval: 25
         )
     }
 }

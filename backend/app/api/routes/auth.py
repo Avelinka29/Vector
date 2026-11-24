@@ -7,6 +7,7 @@ from app.api.dependencies import CurrentUser, SessionDependency
 from app.core.config import settings
 from app.core.security import hash_password, verify_password
 from app.models.action_token import ActionTokenPurpose
+from app.models.email_outbox import EmailOutbox
 from app.models.enums import UserRole, UserStatus
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
@@ -35,9 +36,34 @@ from app.services.auth import (
     revoke_refresh_token,
     rotate_refresh_token,
 )
-from app.services.email import send_action_email
+from app.services.email import mail_configured, send_action_email
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+async def send_or_queue_action_email(
+    session: SessionDependency,
+    email: str,
+    subject: str,
+    title: str,
+    link: str,
+) -> bool:
+    if mail_configured():
+        try:
+            await send_action_email(email, subject, title, link)
+            return True
+        except HTTPException:
+            # The account or reset request must not be left half-created when
+            # the configured provider is temporarily unavailable. The worker
+            # will retry the same message from the durable outbox.
+            pass
+    session.add(EmailOutbox(
+        recipient=email,
+        subject=subject,
+        body=f"{title}\n\n{link}\n\nЕсли это были не вы, проигнорируйте письмо.",
+    ))
+    await session.commit()
+    return False
 
 
 @router.post("/google", response_model=TokenResponse)
@@ -86,7 +112,8 @@ async def register(payload: RegisterRequest, session: SessionDependency) -> Toke
     token = await create_action_token(
         session, user, ActionTokenPurpose.VERIFY_EMAIL, timedelta(hours=24)
     )
-    await send_action_email(
+    await send_or_queue_action_email(
+        session,
         user.email,
         "Подтверждение email VECTOR",
         "Подтвердите адрес электронной почты",
@@ -137,13 +164,14 @@ async def request_email_verification(
     token = await create_action_token(
         session, user, ActionTokenPurpose.VERIFY_EMAIL, timedelta(hours=24)
     )
-    await send_action_email(
+    delivered = await send_or_queue_action_email(
+        session,
         user.email,
         "Подтверждение email VECTOR",
         "Подтвердите адрес электронной почты",
         action_link("verify-email", token),
     )
-    return MessageResponse(message="Письмо отправлено")
+    return MessageResponse(message="Письмо отправлено" if delivered else "Письмо поставлено в очередь отправки")
 
 
 @router.post("/email/verification/confirm", response_model=MessageResponse)
@@ -163,14 +191,15 @@ async def request_password_reset(
         token = await create_action_token(
             session, user, ActionTokenPurpose.RESET_PASSWORD, timedelta(minutes=30)
         )
-        await send_action_email(
+        await send_or_queue_action_email(
+            session,
             user.email,
             "Восстановление пароля VECTOR",
             "Установите новый пароль",
             action_link("reset-password", token),
         )
     return MessageResponse(
-        message="Если аккаунт существует, письмо отправлено"
+        message="Если аккаунт существует, письмо отправлено или поставлено в очередь"
     )
 
 

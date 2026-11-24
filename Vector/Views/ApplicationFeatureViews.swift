@@ -439,6 +439,8 @@ struct ApplicationStatusView: View {
 }
 
 struct SpecialtyDetailsView: View {
+    @State private var comparison = ComparisonStore.shared
+    @State private var showsComparisonLimit = false
     let specialty: SpecialtyRecord
     let institution: InstitutionRecord?
     let applicantID: String
@@ -469,6 +471,26 @@ struct SpecialtyDetailsView: View {
                 HStack(spacing: 12) {
                     SpecialtyMetric(value: specialty.code.isEmpty ? "—" : specialty.code, title: "Код")
                     SpecialtyMetric(value: specialty.educationLevel ?? "—", title: "Уровень")
+                }
+
+                if let institution {
+                    Button {
+                        if !comparison.toggle(institutionID: institution.id, specialtyID: specialty.id) {
+                            showsComparisonLimit = true
+                        }
+                    } label: {
+                        Label(
+                            comparison.contains(institutionID: institution.id, specialtyID: specialty.id)
+                                ? "Убрать из сравнения"
+                                : "Добавить к сравнению",
+                            systemImage: comparison.contains(institutionID: institution.id, specialtyID: specialty.id)
+                                ? "checkmark.square.fill"
+                                : "square.stack.3d.up"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.systemBlue01)
                 }
 
                 VStack(alignment: .leading, spacing: 14) {
@@ -518,6 +540,11 @@ struct SpecialtyDetailsView: View {
         }
         .background(.systemWhite)
         .navigationBarTitleDisplayMode(.inline)
+        .alert("Можно сравнить до четырёх вариантов", isPresented: $showsComparisonLimit) {
+            Button("Понятно", role: .cancel) {}
+        } message: {
+            Text("Удалите один из выбранных вариантов и попробуйте снова.")
+        }
     }
 }
 
@@ -592,17 +619,6 @@ struct PrioritiesView: View {
         .navigationTitle("Приоритеты")
         .task { await model.load() }
         .sensoryFeedback(.success, trigger: didSave)
-    }
-}
-
-struct AnalyticsView: View {
-    var body: some View {
-        ContentUnavailableView {
-            Label("Аналитика пока недоступна", systemImage: "chart.line.uptrend.xyaxis")
-        } description: {
-            Text("Проходные баллы и конкурс появятся после подключения официальных данных приёмных кампаний.")
-        }
-        .navigationTitle("Аналитика")
     }
 }
 

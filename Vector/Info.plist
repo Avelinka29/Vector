@@ -2,13 +2,13 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>GIDClientID</key>
-	<string>453479315586-aggsuevujhv59oekauhc2tr8s5fio97l.apps.googleusercontent.com</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
 			<key>CFBundleURLSchemes</key>
-			<array><string>vector</string></array>
+			<array>
+				<string>vector</string>
+			</array>
 		</dict>
 		<dict>
 			<key>CFBundleTypeRole</key>
@@ -19,6 +19,8 @@
 			</array>
 		</dict>
 	</array>
+	<key>GIDClientID</key>
+	<string>453479315586-aggsuevujhv59oekauhc2tr8s5fio97l.apps.googleusercontent.com</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
@@ -29,6 +31,6 @@
 		<string>remote-notification</string>
 	</array>
 	<key>VECTOR_API_BASE_URL</key>
-	<string>http://MacBook-Air-YULIYA.local:8002</string>
+	<string>http://MacBook-Air-AVELINA.local:8002</string>
 </dict>
 </plist>

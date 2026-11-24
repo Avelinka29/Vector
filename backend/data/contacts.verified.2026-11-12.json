@@ -1,8 +1,17 @@
 [
   {
     "institution_ids": ["bsuir", "abiturient_d0e47fee005fc7"],
+    "source_url": "https://www.bsuir.by/ru/kontakty",
+    "checked_at": "2026-11-17",
+    "fields": {
+      "address": "220013, г. Минск, ул. П. Бровки, 6",
+      "website_url": "https://www.bsuir.by/"
+    }
+  },
+  {
+    "institution_ids": ["bsuir", "abiturient_d0e47fee005fc7"],
     "source_url": "https://abitur.bsuir.by/kontakty-priyomnoy-komissii",
-    "checked_at": "2026-11-12",
+    "checked_at": "2026-11-17",
     "fields": {
       "admissions_phone": "+375 29 550 96 69",
       "admissions_email": "prcom@bsuir.by",
@@ -41,6 +50,40 @@
       "admissions_email": "pk@bsmu.by",
       "website_url": "https://www.bsmu.by/",
       "admissions_url": "https://www.bsmu.by/abiturientu/"
+    }
+  },
+  {
+    "institution_ids": ["polessu", "abiturient_213a9889b12f8b"],
+    "source_url": "https://www.polessu.by/контакты-приёмной-комиссии",
+    "checked_at": "2026-11-17",
+    "fields": {
+      "address": "225710, г. Пинск, ул. Днепровской флотилии, 23",
+      "admissions_phone": "+375 (165) 30-13-20",
+      "admissions_email": "pk@polessu.by",
+      "website_url": "https://www.polessu.by/",
+      "admissions_url": "https://www.polessu.by/контакты-приёмной-комиссии"
+    }
+  },
+  {
+    "institution_ids": ["vsu", "abiturient_e4d6ebadeafcc6"],
+    "source_url": "https://www.vsu.by/abiturientam/kontakty.html",
+    "checked_at": "2026-11-17",
+    "fields": {
+      "address": "210038, г. Витебск, Московский пр-т, 33",
+      "admissions_phone": "+375 (212) 37-82-81, +375 (33) 370-01-10",
+      "admissions_email": "abit@mail-vsu.by",
+      "website_url": "https://www.vsu.by/",
+      "admissions_url": "https://www.vsu.by/abiturientam/kontakty.html"
+    }
+  },
+  {
+    "institution_ids": ["abiturient_f39f6b2a9c046a"],
+    "source_url": "https://www.vstu.by/ru/kontakty",
+    "checked_at": "2026-11-17",
+    "fields": {
+      "address": "210038, г. Витебск, Московский пр-т, 72",
+      "website_url": "https://www.vstu.by/",
+      "admissions_url": "https://abiturient.vstu.by/"
     }
   }
 ]

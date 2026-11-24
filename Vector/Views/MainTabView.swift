@@ -389,10 +389,7 @@ private struct InstitutionRow: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: institution.type == "college" ? "building.2" : "building.columns")
-                .foregroundStyle(.systemBlue01)
-                .frame(width: 42, height: 42)
-                .background(.systemBlue01.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+            InstitutionVisual(imageURL: institution.imageURL, type: institution.type)
             VStack(alignment: .leading, spacing: 5) {
                 Text(institution.name)
                     .font(.headline)
@@ -416,6 +413,10 @@ private struct InstitutionDetailsView: View {
 
     var body: some View {
         List {
+            InstitutionVisual(imageURL: institution.imageURL, type: institution.type, isHero: true)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(Color.clear)
+
             Section {
                 Label(institution.locality, systemImage: "mappin.and.ellipse")
                 if let address = institution.address, !address.isEmpty {
@@ -451,8 +452,7 @@ private struct InstitutionDetailsView: View {
             Section {
                 NavigationLink {
                     InstitutionSpecialtiesView(
-                        institutionID: institution.id,
-                        institutionName: institution.name
+                        institution: institution
                     )
                 } label: {
                     Label("Специальности учреждения", systemImage: "book.closed")
@@ -486,8 +486,7 @@ private struct InstitutionDetailsView: View {
 }
 
 private struct InstitutionSpecialtiesView: View {
-    let institutionID: String
-    let institutionName: String
+    let institution: InstitutionRecord
     @State private var model = SpecialtiesViewModel()
 
     var body: some View {
@@ -508,14 +507,22 @@ private struct InstitutionSpecialtiesView: View {
                 )
             } else {
                 List(model.visibleSpecialties) { specialty in
-                    SpecialtyRow(specialty: specialty, institutionName: institutionName)
+                    NavigationLink {
+                        SpecialtyDetailsView(
+                            specialty: specialty,
+                            institution: institution,
+                            applicantID: ""
+                        )
+                    } label: {
+                        SpecialtyRow(specialty: specialty, institutionName: institution.name)
+                    }
                 }
                 .listStyle(.plain)
             }
         }
         .navigationTitle("Специальности")
         .navigationBarTitleDisplayMode(.inline)
-        .task { await model.load(institutionID: institutionID) }
+        .task { await model.load(institutionID: institution.id) }
     }
 }
 
@@ -548,7 +555,7 @@ struct SpecialtiesSearchView: View {
                     NavigationLink {
                         SpecialtyDetailsView(
                             specialty: specialty,
-                            institution: model.institutions(for: specialty.id).first,
+                            institution: selectedInstitution(for: specialty),
                             applicantID: applicantID
                         )
                     } label: {
@@ -565,7 +572,15 @@ struct SpecialtiesSearchView: View {
         .navigationTitle("Специальности")
         .searchable(text: $model.searchText, prompt: "Название, код или учреждение")
         .toolbar {
-            Menu {
+            ToolbarItem(placement: .topBarLeading) {
+                NavigationLink {
+                    SpecialtyComparisonView()
+                } label: {
+                    Image(systemName: "square.stack.3d.up")
+                }
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
                 Picker("Учреждение", selection: $model.selectedInstitutionID) {
                     Text("Все учреждения").tag(String?.none)
                     ForEach(model.institutions) { institution in
@@ -584,11 +599,20 @@ struct SpecialtiesSearchView: View {
                         Text(form).tag(Optional(form))
                     }
                 }
-            } label: {
-                Image(systemName: "line.3.horizontal.decrease.circle")
+                } label: {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                }
             }
         }
         .task { await model.load() }
+    }
+
+    private func selectedInstitution(for specialty: SpecialtyRecord) -> InstitutionRecord? {
+        let institutions = model.institutions(for: specialty.id)
+        guard let selectedInstitutionID = model.selectedInstitutionID else {
+            return institutions.first
+        }
+        return institutions.first { $0.id == selectedInstitutionID } ?? institutions.first
     }
 }
 
@@ -597,32 +621,35 @@ private struct SpecialtyRow: View {
     let institutionName: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(specialty.name)
-                .font(.headline)
-                .foregroundStyle(.systemDarkBlue)
-            if !specialty.code.isEmpty {
-                Text(specialty.code)
-                    .font(.caption.bold())
-                    .foregroundStyle(.systemBlue01)
-            }
-            Text(institutionName)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            if let level = specialty.educationLevel, !level.isEmpty {
-                Text(level)
+        HStack(alignment: .top, spacing: 14) {
+            SpecialtyVisual(specialty: specialty)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(specialty.name)
+                    .font(.headline)
+                    .foregroundStyle(.systemDarkBlue)
+                if !specialty.code.isEmpty {
+                    Text(specialty.code)
+                        .font(.caption.bold())
+                        .foregroundStyle(.systemBlue01)
+                }
+                Text(institutionName)
                     .font(.caption)
                     .foregroundStyle(.secondary)
-            }
-            if !specialty.studyForms.isEmpty {
-                Text(specialty.studyForms.formatted())
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-            }
-            if specialty.requiresVerification == true {
-                Label("Данные требуют проверки", systemImage: "exclamationmark.triangle")
-                    .font(.caption2)
-                    .foregroundStyle(.orange)
+                if let level = specialty.educationLevel, !level.isEmpty {
+                    Text(level)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                if !specialty.studyForms.isEmpty {
+                    Text(specialty.studyForms.formatted())
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                if specialty.requiresVerification == true {
+                    Label("Данные требуют проверки", systemImage: "exclamationmark.triangle")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
             }
         }
         .padding(.vertical, 6)
@@ -646,6 +673,13 @@ struct ApplicationsView: View {
                     Text("Принято · \(model.count(for: .accepted))").tag(ApplicationsViewModel.Filter.accepted)
                 }
                 .pickerStyle(.segmented)
+
+                if !model.applications.isEmpty {
+                    ApplicationPrioritiesLink(
+                        applicantID: model.applicantID,
+                        applicationCount: model.applications.count
+                    )
+                }
 
                 if model.isLoading && model.applications.isEmpty {
                     ProgressView("Загрузка заявлений…")
@@ -689,14 +723,45 @@ struct ApplicationsView: View {
         .toolbar(.hidden, for: .navigationBar)
         .task { await model.load() }
         .refreshable { await model.load() }
-        .toolbar {
-            NavigationLink {
-                PrioritiesView(applicantID: model.applicantID)
-            } label: {
-                Image(systemName: "list.number")
-            }
-        }
     }
+}
+
+private struct ApplicationPrioritiesLink: View {
+    let applicantID: String
+    let applicationCount: Int
+
+    var body: some View {
+        NavigationLink {
+            PrioritiesView(applicantID: applicantID)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "list.number")
+                    .font(.title3)
+                    .foregroundStyle(.systemBlue01)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Приоритеты заявлений")
+                        .font(.headline)
+                        .foregroundStyle(.systemDarkBlue)
+                    Text("Заявлений: \(applicationCount). Расставьте их в нужном порядке.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            .padding(16)
+            .background(Color.systemGrey1.opacity(0.3), in: RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct CachedAIRecommendation: Codable {
+    let prompt: String
+    let answer: String
+    let createdAt: Date
 }
 
 struct OpportunitiesView: View {
@@ -765,6 +830,12 @@ struct OpportunitiesView: View {
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 NavigationLink {
+                    SpecialtyComparisonView()
+                } label: {
+                    Image(systemName: "square.stack.3d.up")
+                }
+
+                NavigationLink {
                     AnalyticsView()
                 } label: {
                     Image(systemName: "chart.line.uptrend.xyaxis")
@@ -784,6 +855,13 @@ struct OpportunitiesView: View {
         guard force || recommendation == nil else { return }
         guard !isLoadingRecommendation else { return }
 
+        if !force, let cached = cachedRecommendation,
+           cached.prompt == recommendationPrompt,
+           cached.createdAt > Date.now.addingTimeInterval(-6 * 60 * 60) {
+            recommendation = cached.answer
+            return
+        }
+
         isLoadingRecommendation = true
         recommendationError = nil
         defer { isLoadingRecommendation = false }
@@ -791,12 +869,28 @@ struct OpportunitiesView: View {
         do {
             let response = try await AssistantService.chat(message: recommendationPrompt)
             recommendation = response.answer
+            saveCachedRecommendation(response.answer)
         } catch {
             recommendationError = UserFacingError.message(
                 for: error,
                 fallback: "Не удалось обновить рекомендации. Попробуйте ещё раз."
             )
         }
+    }
+
+    private var recommendationCacheKey: String {
+        "vector.ai-recommendation.\(applicantID.isEmpty ? "anonymous" : applicantID)"
+    }
+
+    private var cachedRecommendation: CachedAIRecommendation? {
+        guard let data = UserDefaults.standard.data(forKey: recommendationCacheKey) else { return nil }
+        return try? JSONDecoder().decode(CachedAIRecommendation.self, from: data)
+    }
+
+    private func saveCachedRecommendation(_ answer: String) {
+        let value = CachedAIRecommendation(prompt: recommendationPrompt, answer: answer, createdAt: .now)
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        UserDefaults.standard.set(data, forKey: recommendationCacheKey)
     }
 
     private var recommendationPrompt: String {

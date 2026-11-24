@@ -1,0 +1,132 @@
+[
+  {
+    "institution_id": "abiturient_d0e47fee005fc7",
+    "specialty_id": "sp_acca55e440302fdc",
+    "admission_year": 2026,
+    "study_form": "дневная",
+    "funding_type": "paid",
+    "score": 345,
+    "source_url": "https://abitur.bsuir.by/prokhodnye-bally-2026-goda",
+    "verified_at": "2026-11-15"
+  },
+  {
+    "institution_id": "abiturient_d0e47fee005fc7",
+    "specialty_id": "sp_d97cc7fc0b2e8c16",
+    "admission_year": 2026,
+    "study_form": "дистанционная",
+    "funding_type": "paid",
+    "score": 233,
+    "source_url": "https://abitur.bsuir.by/prokhodnye-bally-2026-goda",
+    "verified_at": "2026-11-15"
+  },
+  {
+    "institution_id": "abiturient_d0e47fee005fc7",
+    "specialty_id": "sp_74cb274c013e3630",
+    "admission_year": 2026,
+    "study_form": "дневная",
+    "funding_type": "paid",
+    "score": 210,
+    "source_url": "https://abitur.bsuir.by/prokhodnye-bally-2026-goda",
+    "verified_at": "2026-11-15"
+  },
+  {
+    "institution_id": "abiturient_d0e47fee005fc7",
+    "specialty_id": "sp_8371521f4f450cd4",
+    "admission_year": 2026,
+    "study_form": "дневная",
+    "funding_type": "budget",
+    "score": 310,
+    "source_url": "https://abitur.bsuir.by/prokhodnye-bally-2026-goda",
+    "verified_at": "2026-11-15"
+  },
+  {
+    "institution_id": "abiturient_d0e47fee005fc7",
+    "specialty_id": "sp_8371521f4f450cd4",
+    "admission_year": 2026,
+    "study_form": "дневная",
+    "funding_type": "paid",
+    "score": 226,
+    "source_url": "https://abitur.bsuir.by/prokhodnye-bally-2026-goda",
+    "verified_at": "2026-11-15"
+  },
+  {
+    "institution_id": "abiturient_d0e47fee005fc7",
+    "specialty_id": "sp_999a5da98fe684fd",
+    "admission_year": 2026,
+    "study_form": "дневная",
+    "funding_type": "budget",
+    "score": 311,
+    "source_url": "https://abitur.bsuir.by/prokhodnye-bally-2026-goda",
+    "verified_at": "2026-11-15"
+  },
+  {
+    "institution_id": "abiturient_d0e47fee005fc7",
+    "specialty_id": "sp_07fc8806bb966c41",
+    "admission_year": 2026,
+    "study_form": "дистанционная",
+    "funding_type": "paid",
+    "score": 262,
+    "source_url": "https://abitur.bsuir.by/prokhodnye-bally-2026-goda",
+    "verified_at": "2026-11-15"
+  },
+  {
+    "institution_id": "abiturient_d0e47fee005fc7",
+    "specialty_id": "sp_087d9f677ef3ede1",
+    "admission_year": 2026,
+    "study_form": "дневная",
+    "funding_type": "budget",
+    "score": 293,
+    "source_url": "https://abitur.bsuir.by/prokhodnye-bally-2026-goda",
+    "verified_at": "2026-11-15"
+  },
+  {
+    "institution_id": "abiturient_d0e47fee005fc7",
+    "specialty_id": "sp_4797cfcc509491e7",
+    "admission_year": 2026,
+    "study_form": "дистанционная",
+    "funding_type": "budget",
+    "score": 364,
+    "source_url": "https://abitur.bsuir.by/prokhodnye-bally-2026-goda",
+    "verified_at": "2026-11-15"
+  },
+  {
+    "institution_id": "abiturient_d0e47fee005fc7",
+    "specialty_id": "sp_4797cfcc509491e7",
+    "admission_year": 2026,
+    "study_form": "дистанционная",
+    "funding_type": "paid",
+    "score": 286,
+    "source_url": "https://abitur.bsuir.by/prokhodnye-bally-2026-goda",
+    "verified_at": "2026-11-15"
+  },
+  {
+    "institution_id": "abiturient_d0e47fee005fc7",
+    "specialty_id": "sp_7a568063edbce026",
+    "admission_year": 2026,
+    "study_form": "дневная",
+    "funding_type": "budget",
+    "score": 365,
+    "source_url": "https://abitur.bsuir.by/prokhodnye-bally-2026-goda",
+    "verified_at": "2026-11-15"
+  },
+  {
+    "institution_id": "abiturient_d0e47fee005fc7",
+    "specialty_id": "sp_7a568063edbce026",
+    "admission_year": 2026,
+    "study_form": "дневная",
+    "funding_type": "paid",
+    "score": 261,
+    "source_url": "https://abitur.bsuir.by/prokhodnye-bally-2026-goda",
+    "verified_at": "2026-11-15"
+  },
+  {
+    "institution_id": "abiturient_d0e47fee005fc7",
+    "specialty_id": "sp_7a568063edbce026",
+    "admission_year": 2026,
+    "study_form": "дистанционная",
+    "funding_type": "paid",
+    "score": 278,
+    "source_url": "https://abitur.bsuir.by/prokhodnye-bally-2026-goda",
+    "verified_at": "2026-11-15"
+  }
+]

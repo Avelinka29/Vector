@@ -17,6 +17,8 @@ struct InstitutionRecord: Codable, Equatable, Identifiable {
     var admissionsEmail: String?
     var admissionsURL: String?
     var sourceURL: String?
+    var imageURL: String?
+    var imageSourceURL: String?
     var lastVerifiedAt: Date?
     var isActive: Bool
 
@@ -44,6 +46,8 @@ struct InstitutionRecord: Codable, Equatable, Identifiable {
         self.admissionsEmail = nil
         self.admissionsURL = nil
         self.sourceURL = nil
+        self.imageURL = nil
+        self.imageSourceURL = nil
         self.lastVerifiedAt = nil
         self.isActive = isActive
     }

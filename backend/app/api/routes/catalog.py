@@ -4,11 +4,49 @@ from sqlalchemy import func, select
 from app.api.dependencies import SessionDependency
 from app.models.catalog import EducationInstitution, EducationInstitutionSpecialty, EducationPassingScore, EducationSpecialty
 from app.models.institution_workspace import InstitutionProfile, InstitutionProgram
-from app.schemas.catalog import InstitutionResponse, PassingScoreResponse, SpecialtyResponse
+from app.schemas.catalog import CatalogAnalyticsResponse, InstitutionResponse, PassingScoreResponse, SpecialtyResponse
 from app.services.catalog_visibility import visible_institution
 from app.services.catalog_search import institution_search
 
 router = APIRouter(prefix="/catalog", tags=["catalog"])
+
+
+@router.get("/analytics", response_model=CatalogAnalyticsResponse)
+async def catalog_analytics(session: SessionDependency) -> dict:
+    visible = visible_institution()
+    institutions = await session.scalar(select(func.count()).select_from(EducationInstitution).where(visible)) or 0
+    specialties = await session.scalar(select(func.count()).select_from(EducationSpecialty).where(
+        EducationSpecialty.is_active.is_(True))) or 0
+    programs = await session.scalar(select(func.count()).select_from(EducationInstitutionSpecialty).join(
+        EducationInstitution, EducationInstitution.id == EducationInstitutionSpecialty.institution_id
+    ).where(visible, EducationInstitutionSpecialty.is_active.is_(True))) or 0
+    passing_scores = await session.scalar(select(func.count()).select_from(EducationPassingScore).join(
+        EducationInstitution, EducationInstitution.id == EducationPassingScore.institution_id
+    ).where(visible)) or 0
+    verified = await session.scalar(select(func.count()).select_from(EducationInstitution).where(
+        visible, EducationInstitution.last_verified_at.is_not(None))) or 0
+    with_images = await session.scalar(select(func.count()).select_from(EducationInstitution).where(
+        visible, EducationInstitution.image_url != "")) or 0
+    type_rows = (await session.execute(select(EducationInstitution.type, func.count()).where(
+        visible).group_by(EducationInstitution.type).order_by(func.count().desc()))).all()
+    city_rows = (await session.execute(select(EducationInstitution.locality, func.count()).where(
+        visible, EducationInstitution.locality != "").group_by(EducationInstitution.locality)
+        .order_by(func.count().desc(), EducationInstitution.locality).limit(6))).all()
+    year_rows = (await session.execute(select(EducationPassingScore.admission_year, func.count()).join(
+        EducationInstitution, EducationInstitution.id == EducationPassingScore.institution_id
+    ).where(visible).group_by(EducationPassingScore.admission_year)
+        .order_by(EducationPassingScore.admission_year.desc()))).all()
+    return {
+        "institutions": institutions,
+        "specialties": specialties,
+        "programs": programs,
+        "passing_scores": passing_scores,
+        "verified_institutions": verified,
+        "institutions_with_images": with_images,
+        "institution_types": [{"label": label or "other", "count": count} for label, count in type_rows],
+        "leading_cities": [{"label": label, "count": count} for label, count in city_rows],
+        "passing_score_years": [{"year": year, "count": count} for year, count in year_rows],
+    }
 
 
 @router.get("/institutions/{institution_id}/passing-scores", response_model=list[PassingScoreResponse])
@@ -72,6 +110,7 @@ def specialty_response(rows):
         id=specialty.id, institution_id=link.institution_id, name=specialty.name, code=specialty.code,
         education_level=specialty.education_level, qualification=link.qualification or specialty.qualification,
         study_forms=specialty.study_forms, source_url=link.source_url or specialty.source_url,
+        image_url=specialty.image_url, image_source_url=specialty.image_source_url,
         last_verified_at=specialty.last_verified_at,
         needs_verification=link.needs_verification or specialty.needs_verification,
         faculty=program.faculty if program else "", duration=program.duration if program else None,
@@ -96,5 +135,5 @@ async def specialties_for_institution(institution_id: str, session: SessionDepen
                                       search: str = Query(default="", max_length=200)):
     query = specialty_query().where(EducationInstitutionSpecialty.institution_id == institution_id)
     if search.strip():
-        query = query.where(func.lower(EducationSpecialty.name).like(func.lower(f"%{search.strip()}%")))
+        query = query.where(func.lower(EducationSpecialty.name).contains(search.strip().lower(), autoescape=True))
     return specialty_response((await session.execute(query.order_by(EducationSpecialty.name, EducationSpecialty.id))).all())

@@ -1,9 +1,10 @@
+import asyncio
 import re
 from datetime import datetime, timedelta, timezone
 
 import httpx
 from fastapi import APIRouter
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 
 from app.api.dependencies import CurrentUser, SessionDependency
 from app.core.config import settings
@@ -29,6 +30,49 @@ FACT_SENSITIVE_WORDS = (
     "прием",
     "приём",
 )
+RECOMMENDATION_MARKER = "подбери для абитуриента"
+
+
+def deduplicate_institutions(
+    items: list[EducationInstitution], coverage: dict[str, int] | None = None
+) -> list[EducationInstitution]:
+    coverage = coverage or {}
+    selected: dict[str, EducationInstitution] = {}
+    for item in items:
+        key = re.sub(r"[^\w]+", " ", item.name.casefold().replace("ё", "е")).strip()
+        current = selected.get(key)
+        current_score = coverage.get(current.id, 0) if current else -1
+        item_score = coverage.get(item.id, 0)
+        if current is None or item_score > current_score or (
+            item_score == current_score
+            and current.last_verified_at is None
+            and item.last_verified_at is not None
+        ):
+            selected[key] = item
+    return list(selected.values())
+
+
+async def institution_coverage(session: SessionDependency, items: list[EducationInstitution]) -> dict[str, int]:
+    if not items:
+        return {}
+    identifiers = [item.id for item in items]
+    link_rows = (await session.execute(
+        select(EducationInstitutionSpecialty.institution_id, func.count())
+        .where(
+            EducationInstitutionSpecialty.institution_id.in_(identifiers),
+            EducationInstitutionSpecialty.is_active.is_(True),
+        )
+        .group_by(EducationInstitutionSpecialty.institution_id)
+    )).all()
+    score_rows = (await session.execute(
+        select(EducationPassingScore.institution_id, func.count())
+        .where(EducationPassingScore.institution_id.in_(identifiers))
+        .group_by(EducationPassingScore.institution_id)
+    )).all()
+    coverage = {identifier: count for identifier, count in link_rows}
+    for identifier, count in score_rows:
+        coverage[identifier] = coverage.get(identifier, 0) + count * 10_000
+    return coverage
 
 SYSTEM_PROMPT = """Ты — ИИ-помощник образовательной платформы VECTOR для Беларуси.
 Отвечай по-русски, понятно и доброжелательно. Помогай с выбором учреждения,
@@ -60,6 +104,9 @@ async def search_catalog(
         institutions = list((await session.scalars(institution_query.where(
             alias_filter(aliases)
         ).order_by(EducationInstitution.name, EducationInstitution.id).limit(8))).all())
+        institutions = deduplicate_institutions(
+            institutions, await institution_coverage(session, institutions)
+        )
         if not institutions:
             return [], []
     elif terms:
@@ -67,6 +114,9 @@ async def search_catalog(
         institutions = list((await session.scalars(institution_query.where(rank > 0)
             .order_by(rank.desc(), EducationInstitution.name, EducationInstitution.id)
             .limit(8))).all())
+        institutions = deduplicate_institutions(
+            institutions, await institution_coverage(session, institutions)
+        )
 
     # Filter through an ID subquery: DISTINCT over the JSON study_forms column
     # is not supported by PostgreSQL, and a specialty may have multiple links.
@@ -81,12 +131,33 @@ async def search_catalog(
                                             EducationSpecialty.id.in_(linked_ids))
     rank = relevance([EducationSpecialty.name, EducationSpecialty.code,
                       EducationSpecialty.qualification], terms) if terms else None
-    if not institutions and rank is not None:
+    if rank is not None:
         query = query.where(rank > 0)
     if rank is not None:
         query = query.order_by(rank.desc())
     specialties = list((await session.scalars(query.order_by(
         EducationSpecialty.name, EducationSpecialty.id).limit(8))).all())
+    if specialties:
+        linked_institutions = list((await session.scalars(
+            select(EducationInstitution)
+            .join(EducationInstitutionSpecialty,
+                  EducationInstitutionSpecialty.institution_id == EducationInstitution.id)
+            .where(
+                visible_institution(),
+                EducationInstitutionSpecialty.is_active.is_(True),
+                EducationInstitutionSpecialty.specialty_id.in_([item.id for item in specialties]),
+            )
+            .order_by(EducationInstitution.name, EducationInstitution.id)
+            .limit(8)
+        )).unique().all())
+        linked_institutions = deduplicate_institutions(
+            linked_institutions, await institution_coverage(session, linked_institutions)
+        )
+        if institutions:
+            linked_ids = {item.id for item in linked_institutions}
+            institutions = [item for item in institutions if item.id in linked_ids]
+        else:
+            institutions = linked_institutions
     return institutions, specialties
 
 
@@ -160,9 +231,9 @@ def fallback_answer(
 ) -> str:
     sections: list[str] = ["Ответ ИИ сейчас недоступен. Ниже — результаты поиска по справочнику VECTOR."]
     if institutions:
-        sections.append("Подходящие учреждения: " + "; ".join(item.name for item in institutions))
+        sections.append("Подходящие учреждения: " + "; ".join(item.name for item in institutions[:3]))
     if specialties:
-        sections.append("Подходящие специальности: " + "; ".join(item.name for item in specialties))
+        sections.append("Подходящие специальности: " + "; ".join(item.name for item in specialties[:3]))
     if not institutions and not specialties:
         sections.append(
             "В справочнике не нашлось точного совпадения. Уточните город, полное название "
@@ -195,11 +266,71 @@ def profile_preferences(profile: ApplicantProfile | None) -> str:
     return "; ".join(values) if values else "Предпочтения пользователя не заполнены."
 
 
+def recommendation_search_text(message: str, profile: ApplicantProfile | None) -> str:
+    if RECOMMENDATION_MARKER not in message.casefold():
+        return message
+    preferences = profile_preferences(profile)
+    if preferences != "Предпочтения пользователя не заполнены.":
+        return preferences
+    match = re.search(r"Данные профиля:\s*(.+?)(?:\n|Не придумывай|$)", message, re.IGNORECASE | re.DOTALL)
+    return match.group(1).strip() if match else message
+
+
+def missing_verified_fact_answer(
+    message: str,
+    institutions: list[EducationInstitution],
+    passing_scores: list[EducationPassingScore],
+    specialty_names: dict[str, str] | None = None,
+) -> str | None:
+    normalized = message.casefold()
+    asks_score = "проходн" in normalized or "балл" in normalized
+    if asks_score and passing_scores:
+        institution_names = {item.id: item.name for item in institutions}
+        specialty_names = specialty_names or {}
+        funding_labels = {"budget": "бюджет", "paid": "платное"}
+        lines = []
+        for item in passing_scores[:8]:
+            label = institution_names.get(item.institution_id, "Учреждение")
+            specialty = specialty_names.get(item.specialty_id, "Специальность не указана")
+            details = " · ".join(filter(None, [
+                str(item.admission_year), item.study_form,
+                funding_labels.get(item.funding_type, item.funding_type),
+            ]))
+            lines.append(f"• {specialty} — {item.score:g} ({label} · {details})")
+        return (
+            "Подтверждённые проходные баллы из справочника VECTOR:\n"
+            + "\n".join(lines)
+            + "\n\nПроверяйте год, форму обучения и официальный источник перед подачей документов."
+        )
+    if not any(word in normalized for word in FACT_SENSITIVE_WORDS):
+        return None
+    names = ", ".join(item.name for item in institutions[:3])
+    subject = f" для {names}" if names else ""
+    if asks_score:
+        fact = "подтверждённых проходных баллов"
+    elif "стоим" in normalized or "цен" in normalized:
+        fact = "подтверждённой стоимости обучения"
+    elif "срок" in normalized:
+        fact = "подтверждённых сроков приёмной кампании"
+    elif "документ" in normalized:
+        fact = "подтверждённого перечня документов"
+    elif "экзамен" in normalized:
+        fact = "подтверждённого перечня вступительных испытаний"
+    else:
+        fact = "достаточных подтверждённых сведений"
+    return (
+        f"В справочнике VECTOR сейчас нет {fact}{subject}. "
+        "Я не буду придумывать эти данные. Откройте официальную страницу учреждения "
+        "в карточке ниже или уточните учреждение и год поступления."
+    )
+
+
 async def generate_answer(
     message: str,
     context: str,
     preferences: str,
     history: list[dict[str, str]] | None = None,
+    timeout_seconds: float | None = None,
 ) -> str | None:
     if not settings.openrouter_api_key:
         return None
@@ -229,13 +360,15 @@ async def generate_answer(
     }
 
     try:
-        async with httpx.AsyncClient(timeout=settings.assistant_timeout_seconds) as client:
-            response = await client.post(
-                f"{settings.openrouter_base_url.rstrip('/')}/chat/completions",
-                headers=headers,
-                json=body,
-            )
-            response.raise_for_status()
+        total_timeout = timeout_seconds or settings.assistant_timeout_seconds
+        async with asyncio.timeout(total_timeout):
+            async with httpx.AsyncClient(timeout=total_timeout) as client:
+                response = await client.post(
+                    f"{settings.openrouter_base_url.rstrip('/')}/chat/completions",
+                    headers=headers,
+                    json=body,
+                )
+                response.raise_for_status()
         data = response.json()
         choice = data["choices"][0]
         if choice.get("finish_reason") == "length":
@@ -243,7 +376,7 @@ async def generate_answer(
         answer = choice["message"]["content"]
         if isinstance(answer, str) and answer.strip():
             return answer.strip()
-    except (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
+    except (TimeoutError, httpx.HTTPError, KeyError, IndexError, TypeError, ValueError):
         return None
     return None
 
@@ -254,7 +387,8 @@ async def chat(
     user: CurrentUser,
     session: SessionDependency,
 ) -> AssistantReply:
-    search_message = payload.message
+    applicant_profile = await session.get(ApplicantProfile, user.id)
+    search_message = recommendation_search_text(payload.message, applicant_profile)
     # Retain the explicitly named institution for short follow-up questions.
     if not aliases_in(search_message) and re.search(r"\b(там|них|этих|него|ней|этом|этой)\b", search_message.lower()):
         for item in reversed(payload.history):
@@ -289,21 +423,32 @@ async def chat(
     passing_scores = list((await session.scalars(score_query.order_by(
         EducationPassingScore.admission_year.desc(), EducationPassingScore.id
     ).limit(20))).all()) if institution_ids_for_scores or specialty_ids_for_scores else []
-    applicant_profile = await session.get(ApplicantProfile, user.id)
+    score_specialty_names = {}
+    if passing_scores:
+        score_specialty_names = dict((await session.execute(
+            select(EducationSpecialty.id, EducationSpecialty.name).where(
+                EducationSpecialty.id.in_({item.specialty_id for item in passing_scores})
+            )
+        )).all())
     normalized_message = payload.message.lower()
+    is_recommendation = RECOMMENDATION_MARKER in normalized_message
     lacks_evidence = not institutions and not specialties
-    needs_verified_facts = any(word in normalized_message for word in FACT_SENSITIVE_WORDS)
+    fact_message = "" if is_recommendation else payload.message
+    needs_verified_facts = any(word in fact_message.casefold() for word in FACT_SENSITIVE_WORDS)
+    answer = missing_verified_fact_answer(
+        fact_message, institutions, passing_scores, score_specialty_names
+    )
+    is_generated = False
 
-    if lacks_evidence and needs_verified_facts:
-        answer = None
-    else:
+    if answer is None and not (lacks_evidence and needs_verified_facts):
         answer = await generate_answer(
             payload.message,
             catalog_context(institutions, specialties, passing_scores),
             profile_preferences(applicant_profile),
             [item.model_dump() for item in payload.history],
+            timeout_seconds=(settings.assistant_recommendation_timeout_seconds if is_recommendation else None),
         )
-    is_generated = answer is not None
+        is_generated = answer is not None
     if answer is None:
         answer = fallback_answer(institutions, specialties)
 

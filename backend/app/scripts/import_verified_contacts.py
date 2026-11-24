@@ -12,7 +12,8 @@ from app.core.database import SessionFactory
 from app.models.catalog import EducationCatalogMetadata, EducationInstitution
 
 FIELDS = {'address': 500, 'admissions_phone': 100, 'admissions_email': 320,
-          'website_url': 1000, 'admissions_url': 1000}
+          'website_url': 1000, 'admissions_url': 1000,
+          'image_url': 1000, 'image_source_url': 1000}
 
 
 def validate_rows(rows):

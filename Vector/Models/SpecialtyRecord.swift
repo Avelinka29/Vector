@@ -9,6 +9,13 @@ struct SpecialtyRecord: Codable, Equatable, Identifiable {
     var educationLevel: String?
     var studyForms: [String]
     var sourceURL: String
+    var imageURL: String?
+    var imageSourceURL: String?
+    var faculty: String?
+    var duration: Int?
+    var budgetPlaces: Int?
+    var paidPlaces: Int?
+    var descriptionText: String?
     var lastVerifiedAt: Date?
     var requiresVerification: Bool?
     var isActive: Bool
@@ -33,6 +40,13 @@ struct SpecialtyRecord: Codable, Equatable, Identifiable {
         self.educationLevel = educationLevel
         self.studyForms = studyForms
         self.sourceURL = sourceURL
+        self.imageURL = nil
+        self.imageSourceURL = nil
+        self.faculty = nil
+        self.duration = nil
+        self.budgetPlaces = nil
+        self.paidPlaces = nil
+        self.descriptionText = nil
         self.lastVerifiedAt = lastVerifiedAt
         self.requiresVerification = nil
         self.isActive = isActive

@@ -15,7 +15,7 @@ services:
     build: .
     environment:
       VECTOR_DATABASE_URL: postgresql+asyncpg://vector:vector@postgres:5432/vector
-      VECTOR_JWT_SECRET: development-only-change-this-secret
+      VECTOR_JWT_SECRET: ${VECTOR_JWT_SECRET:-development-only-change-this-secret}
       VECTOR_ALLOWED_ORIGINS: http://localhost:3000
       VECTOR_WEB_APP_URL: ${VECTOR_WEB_APP_URL:-http://localhost:4173}
       VECTOR_SMTP_HOST: ${VECTOR_SMTP_HOST:-}
@@ -34,7 +34,10 @@ services:
       VECTOR_OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openrouter/free}
       VECTOR_OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-https://openrouter.ai/api/v1}
       VECTOR_OPENROUTER_APP_NAME: ${OPENROUTER_APP_NAME:-VECTOR}
+      VECTOR_ASSISTANT_TIMEOUT_SECONDS: ${VECTOR_ASSISTANT_TIMEOUT_SECONDS:-20}
+      VECTOR_ASSISTANT_RECOMMENDATION_TIMEOUT_SECONDS: ${VECTOR_ASSISTANT_RECOMMENDATION_TIMEOUT_SECONDS:-10}
       VECTOR_UPLOAD_DIRECTORY: /data/uploads
+      VECTOR_CATALOG_IMAGE_DIRECTORY: /data/catalog-images
       VECTOR_FIREBASE_SERVICE_ACCOUNT_PATH: ${FIREBASE_SERVICE_ACCOUNT_PATH:-}
       VECTOR_GOOGLE_CLIENT_ID: ${VECTOR_GOOGLE_CLIENT_ID:-453479315586-aggsuevujhv59oekauhc2tr8s5fio97l.apps.googleusercontent.com}
     ports:
@@ -43,6 +46,7 @@ services:
       - ../institutions.seed.json:/data/institutions.seed.json:ro
       - ../specialties.seed.json:/data/specialties.seed.json:ro
       - vector_uploads:/data/uploads
+      - vector_catalog_images:/data/catalog-images
     depends_on:
       postgres:
         condition: service_healthy
@@ -65,6 +69,7 @@ services:
 
 volumes:
   vector_uploads:
+  vector_catalog_images:
   vector_postgres_data:
     name: backend_vector_postgres_data
     external: true

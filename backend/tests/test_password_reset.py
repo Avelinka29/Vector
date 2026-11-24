@@ -11,6 +11,7 @@ from app.core.database import Base, get_session
 from app.core.security import hash_password
 from app.main import app
 from app.models import ActionToken, User
+from app.models.email_outbox import EmailOutbox
 from app.models.enums import UserRole, UserStatus
 from app.services import email
 
@@ -29,6 +30,7 @@ async def reset_client(tmp_path, monkeypatch):
     app.dependency_overrides[get_session] = sessions
     mail = AsyncMock()
     monkeypatch.setattr("app.api.routes.auth.send_action_email", mail)
+    monkeypatch.setattr("app.api.routes.auth.mail_configured", lambda: True)
     try:
         async with factory() as session:
             session.add(
@@ -108,6 +110,40 @@ async def test_delivery_failure_is_not_reported_as_success(monkeypatch):
         )
     assert error.value.status_code == 503
     assert "secret" not in error.value.detail
+
+
+async def test_unconfigured_mail_is_queued_without_breaking_request(reset_client, monkeypatch):
+    client, factory, mail = reset_client
+    monkeypatch.setattr("app.api.routes.auth.mail_configured", lambda: False)
+    login = await client.post(
+        "/login", json={"email": "reset@example.com", "password": "old-password"}
+    )
+    headers = {"Authorization": "Bearer " + login.json()["access_token"]}
+
+    response = await client.post("/email/verification/request", headers=headers)
+
+    assert response.status_code == 200
+    assert "очередь" in response.json()["message"]
+    mail.assert_not_called()
+    async with factory() as session:
+        queued = list((await session.scalars(select(EmailOutbox))).all())
+    assert len(queued) == 1
+    assert queued[0].recipient == "reset@example.com"
+
+
+async def test_temporary_mail_failure_falls_back_to_queue(reset_client):
+    from fastapi import HTTPException
+
+    client, factory, mail = reset_client
+    mail.side_effect = HTTPException(status_code=503, detail="temporary")
+
+    response = await client.post("/password/reset/request", json={"email": "reset@example.com"})
+
+    assert response.status_code == 200
+    async with factory() as session:
+        queued = list((await session.scalars(select(EmailOutbox))).all())
+    assert len(queued) == 1
+    assert queued[0].subject == "Восстановление пароля VECTOR"
 
 
 async def test_gmail_sends_mime_message_over_https(monkeypatch):

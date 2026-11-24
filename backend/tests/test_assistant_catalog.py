@@ -4,7 +4,14 @@ import pytest
 from sqlalchemy import event
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-from app.api.routes.assistant import catalog_context, fallback_answer, search_catalog
+from app.api.routes.assistant import (
+    catalog_context,
+    deduplicate_institutions,
+    fallback_answer,
+    missing_verified_fact_answer,
+    recommendation_search_text,
+    search_catalog,
+)
 from app.api.routes.catalog import institutions, passing_scores_for_institution
 from app.core.database import Base
 from app.models.catalog import EducationInstitution as Institution
@@ -97,6 +104,62 @@ async def test_context_labels_ids_and_fallback_is_honest(catalog):
 async def test_no_arbitrary_results_for_generic_or_unknown_question(catalog):
     assert await search_catalog("Помоги подобрать направление", catalog) == ([], [])
     assert await search_catalog("несуществующийинститут", catalog) == ([], [])
+
+
+async def test_specialty_search_returns_its_institution(catalog):
+    institutions, specialties = await search_catalog("математика", catalog)
+    assert [item.id for item in specialties] == ["grsu-math", "other-math"]
+    assert [item.id for item in institutions] == ["grsu", "other"]
+
+
+def test_recommendation_search_uses_profile_payload_instead_of_instructions():
+    message = """Подбери для абитуриента 3 варианта.
+    Данные профиля: интересующие направления: математика; город: Гродно.
+    Не придумывай проходные баллы."""
+    assert recommendation_search_text(message, None) == (
+        "интересующие направления: математика; город: Гродно."
+    )
+
+
+def test_sensitive_fact_without_evidence_is_not_generated(catalog):
+    institution = Institution(id="test", name="Тестовый университет")
+    answer = missing_verified_fact_answer("Какой проходной балл?", [institution], [])
+    assert "нет подтверждённых проходных баллов" in answer
+    assert "не буду придумывать" in answer
+    assert missing_verified_fact_answer("Подбери специальность", [institution], []) is None
+
+
+def test_verified_score_answer_uses_stored_year_and_value():
+    institution = Institution(id="test", name="Тестовый университет")
+    score = Score(
+        id="score",
+        institution_id="test",
+        specialty_id="specialty",
+        admission_year=2026,
+        study_form="очная",
+        funding_type="бюджет",
+        score=321,
+        source_url="https://example.org/official",
+        verified_at=date.today(),
+    )
+    answer = missing_verified_fact_answer(
+        "Какой проходной балл?", [institution], [score], {"specialty": "Математика"}
+    )
+    assert all(value in answer for value in ["321", "2026", "Тестовый университет", "Математика"])
+
+
+def test_duplicate_institution_names_prefer_verified_record():
+    duplicate = Institution(id="import", name="Одинаковый университет")
+    verified = Institution(id="verified", name="Одинаковый университет", last_verified_at=date.today())
+    assert [item.id for item in deduplicate_institutions([duplicate, verified])] == ["verified"]
+
+
+def test_duplicate_institution_names_prefer_record_with_catalog_coverage():
+    sparse = Institution(id="sparse", name="Одинаковый университет", last_verified_at=date.today())
+    complete = Institution(id="complete", name="Одинаковый университет")
+    assert [item.id for item in deduplicate_institutions(
+        [sparse, complete], {"sparse": 2, "complete": 10_013}
+    )] == ["complete"]
 
 
 async def test_contact_import_dry_run_idempotency_and_evidence(catalog, tmp_path, monkeypatch):

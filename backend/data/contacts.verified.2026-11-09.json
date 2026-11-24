@@ -1,10 +1,13 @@
 [
   {
     "institution_ids": ["grsu", "abiturient_e9f0edc100ad7c"],
-    "source_url": "https://abit.grsu.by/itogi-priema-proshlykh-let.html",
-    "checked_at": "2026-11-09",
+    "source_url": "https://abit.grsu.by/kontakty.html",
+    "checked_at": "2026-11-17",
     "fields": {
+      "address": "230023, г. Гродно, ул. Ожешко, 22",
       "admissions_phone": "+375 (152) 67-01-01, +375 (33) 35 44 500, +375 (25) 77 44 500",
+      "admissions_email": "abit@grsu.by",
+      "website_url": "https://www.grsu.by/",
       "admissions_url": "https://abit.grsu.by/"
     }
   },

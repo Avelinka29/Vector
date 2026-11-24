@@ -3,6 +3,7 @@ import Foundation
 nonisolated private struct CatalogInstitutionDTO: Decodable, Sendable {
     let id, name, type, locality, regionId: String
     let address, websiteUrl, admissionsPhone, admissionsEmail, admissionsUrl, sourceUrl: String
+    let imageUrl, imageSourceUrl: String
     let educationLevels: [String]?
     let lastVerifiedAt: String?
     let needsVerification: Bool
@@ -16,6 +17,8 @@ nonisolated private struct CatalogInstitutionDTO: Decodable, Sendable {
         result.admissionsEmail = admissionsEmail
         result.admissionsURL = admissionsUrl
         result.sourceURL = sourceUrl
+        result.imageURL = catalogAssetURL(imageUrl)
+        result.imageSourceURL = imageSourceUrl
         result.requiresVerification = needsVerification
         result.lastVerifiedAt = catalogDate(lastVerifiedAt)
         return result
@@ -24,7 +27,10 @@ nonisolated private struct CatalogInstitutionDTO: Decodable, Sendable {
 
 nonisolated private struct CatalogSpecialtyDTO: Decodable, Sendable {
     let id, institutionId, name, code, educationLevel, qualification, sourceUrl: String
+    let imageUrl, imageSourceUrl: String
     let studyForms: [String]
+    let faculty, description: String
+    let duration, budgetPlaces, paidPlaces: Int?
     let lastVerifiedAt: String?
     let needsVerification: Bool
 
@@ -34,6 +40,13 @@ nonisolated private struct CatalogSpecialtyDTO: Decodable, Sendable {
                                      studyForms: studyForms, sourceURL: sourceUrl,
                                      lastVerifiedAt: catalogDate(lastVerifiedAt))
         result.requiresVerification = needsVerification
+        result.imageURL = catalogAssetURL(imageUrl)
+        result.imageSourceURL = imageSourceUrl
+        result.faculty = faculty
+        result.duration = duration
+        result.budgetPlaces = budgetPlaces
+        result.paidPlaces = paidPlaces
+        result.descriptionText = description
         return result
     }
     @MainActor var link: InstitutionSpecialtyRecord {
@@ -46,6 +59,16 @@ nonisolated private struct CatalogSpecialtyDTO: Decodable, Sendable {
 
 nonisolated private func catalogLevel(_ value: String) -> String {
     ["higher": "Высшее", "master": "Магистратура", "secondary_special": "Среднее специальное", "vocational": "Профессионально-техническое"][value] ?? value
+}
+
+nonisolated private func catalogAssetURL(_ value: String) -> String {
+    guard value.hasPrefix("/"),
+          let configured = Bundle.main.object(forInfoDictionaryKey: "VECTOR_API_BASE_URL") as? String,
+          let baseURL = URL(string: configured),
+          let resolved = URL(string: value, relativeTo: baseURL)?.absoluteURL else {
+        return value
+    }
+    return resolved.absoluteString
 }
 
 @MainActor private func catalogDate(_ value: String?) -> Date? {

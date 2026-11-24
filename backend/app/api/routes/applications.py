@@ -258,9 +258,14 @@ async def replace_priorities(
         raise HTTPException(status_code=404, detail="Одно из заявлений не найдено")
 
     by_id = {application.id: application for application in applications}
+    for temporary_priority, application in enumerate(applications, start=1):
+        application.priority = -temporary_priority
+    await session.flush()
     for item in payload.applications:
         by_id[item.id].priority = item.priority
     await session.commit()
+    for application in applications:
+        await session.refresh(application)
     return sorted(applications, key=lambda application: application.priority)
 
 
@@ -274,7 +279,19 @@ async def update_priority(
     application = await session.get(Application, application_id)
     if application is None or application.applicant_id != user.id:
         raise HTTPException(status_code=404, detail="Заявление не найдено")
+    occupied = await session.scalar(select(Application).where(
+        Application.applicant_id == user.id,
+        Application.priority == payload.priority,
+        Application.id != application.id,
+    ))
+    old_priority = application.priority
+    if occupied is not None:
+        occupied.priority = -1
+        await session.flush()
     application.priority = payload.priority
+    await session.flush()
+    if occupied is not None:
+        occupied.priority = old_priority
     await session.commit()
     await session.refresh(application)
     return application
