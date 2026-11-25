@@ -181,6 +181,50 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
+    func scheduleDeadlineReminders(for applications: [ApplicationRecord]) async {
+        let status = await authorizationStatus()
+        guard [.authorized, .provisional, .ephemeral].contains(status) else { return }
+
+        let identifiers = applications.flatMap {
+            ["deadline.\($0.id).3", "deadline.\($0.id).1"]
+        }
+        center.removePendingNotificationRequests(withIdentifiers: identifiers)
+
+        for application in applications {
+            guard let value = application.submissionDeadline,
+                  let deadline = Self.deadlineDate(from: value) else { continue }
+            for daysBefore in [3, 1] {
+                guard let reminderDate = Calendar.current.date(
+                    byAdding: .day,
+                    value: -daysBefore,
+                    to: deadline
+                ), reminderDate > .now else { continue }
+
+                let content = UNMutableNotificationContent()
+                content.title = daysBefore == 1 ? "Срок уже завтра" : "Приближается срок заявления"
+                content.body = "\(application.institutionName): проверьте документы до \(value)."
+                content.sound = .default
+                content.userInfo = ["application_id": application.id]
+
+                var components = Calendar.current.dateComponents(
+                    [.year, .month, .day],
+                    from: reminderDate
+                )
+                components.hour = 10
+                let request = UNNotificationRequest(
+                    identifier: "deadline.\(application.id).\(daysBefore)",
+                    content: content,
+                    trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+                )
+                do {
+                    try await center.add(request)
+                } catch {
+                    lastErrorMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification
@@ -196,6 +240,17 @@ final class NotificationService: NSObject, UNUserNotificationCenterDelegate {
         } catch {
             lastErrorMessage = error.localizedDescription
         }
+    }
+
+    private static func deadlineDate(from value: String) -> Date? {
+        let parts = value.split(separator: "-").compactMap { Int($0) }
+        guard parts.count == 3 else { return nil }
+        return Calendar.current.date(from: DateComponents(
+            year: parts[0],
+            month: parts[1],
+            day: parts[2],
+            hour: 10
+        ))
     }
 }
 

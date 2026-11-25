@@ -228,9 +228,16 @@ struct HomeView: View {
             .padding(20)
         }
         .background(Color.systemBlue01.opacity(0.035))
-        .task { await applications.load() }
-        .refreshable { await applications.load() }
+        .task { await loadHome() }
+        .refreshable { await loadHome() }
 //        .navigationTitle("Vector")
+    }
+
+    private func loadHome() async {
+        await applications.load()
+        await NotificationService.shared.scheduleDeadlineReminders(
+            for: applications.applications
+        )
     }
 }
 
