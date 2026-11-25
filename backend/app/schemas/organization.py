@@ -17,6 +17,7 @@ class OrganizationCreate(BaseModel):
 
 class OrganizationStatusUpdate(BaseModel):
     status: VerificationStatus
+    catalog_institution_id: str | None = Field(default=None, max_length=160)
 
 
 class OrganizationResponse(BaseModel):

@@ -30,11 +30,13 @@ final class OrganizationModerationViewModel {
 
     func setStatus(
         _ status: OrganizationVerificationStatus,
-        for organization: OrganizationRecord
+        for organization: OrganizationRecord,
+        catalogInstitutionID: String? = nil
     ) async throws {
         let updated = try await service.updateStatus(
             organizationID: organization.id,
-            status: status
+            status: status,
+            catalogInstitutionID: catalogInstitutionID
         )
         if let index = organizations.firstIndex(where: { $0.id == organization.id }) {
             organizations[index] = updated
@@ -81,11 +83,13 @@ struct AdminOrganizationApplicationCard: View {
 
 struct AdminOrganizationApplicationReviewView: View {
     let organization: OrganizationRecord
-    let onStatusChange: (OrganizationVerificationStatus) async throws -> Void
+    let onStatusChange: (OrganizationVerificationStatus, String?) async throws -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var institutions = InstitutionsViewModel()
+    @State private var selectedInstitutionID: String?
 
     var body: some View {
         ScrollView {
@@ -103,6 +107,26 @@ struct AdminOrganizationApplicationReviewView: View {
                 detail("УНП", organization.taxId, icon: "number")
                 detail("Город", organization.city, icon: "mappin.and.ellipse")
                 detail("Сайт", organization.website, icon: "globe")
+
+                if organization.type == .institution {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Связь со справочником")
+                            .font(.headline)
+                            .foregroundStyle(.systemDarkBlue)
+                        Picker("Учреждение", selection: $selectedInstitutionID) {
+                            Text("Выберите учреждение").tag(String?.none)
+                            ForEach(institutions.institutions) { institution in
+                                Text(institution.name).tag(Optional(institution.id))
+                            }
+                        }
+                        .pickerStyle(.navigationLink)
+                        Text("Заявления будут доступны только кабинету выбранного учреждения.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(16)
+                    .background(Color.systemBlue01.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
+                }
 
                 if !organization.description.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {
@@ -137,6 +161,14 @@ struct AdminOrganizationApplicationReviewView: View {
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
             }
         }
+        .task {
+            guard organization.type == .institution else { return }
+            await institutions.load()
+            selectedInstitutionID = institutions.institutions.first(where: {
+                $0.name.localizedCaseInsensitiveContains(organization.name)
+                    || organization.name.localizedCaseInsensitiveContains($0.name)
+            })?.id
+        }
     }
 
     private func detail(_ title: String, _ value: String, icon: String) -> some View {
@@ -169,7 +201,7 @@ struct AdminOrganizationApplicationReviewView: View {
                 isSaving = true
                 errorMessage = nil
                 do {
-                    try await onStatusChange(status)
+                    try await onStatusChange(status, selectedInstitutionID)
                     dismiss()
                 } catch {
                     errorMessage = error.localizedDescription
@@ -193,5 +225,6 @@ struct AdminOrganizationApplicationReviewView: View {
                 }
         }
         .buttonStyle(.plain)
+        .disabled(filled && organization.type == .institution && selectedInstitutionID == nil)
     }
 }

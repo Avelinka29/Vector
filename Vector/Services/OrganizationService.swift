@@ -12,6 +12,7 @@ nonisolated private struct BackendOrganizationCreateBody: Encodable, Sendable {
 
 nonisolated private struct BackendOrganizationStatusBody: Encodable, Sendable {
     let status: OrganizationVerificationStatus
+    let catalogInstitutionId: String?
 }
 
 @MainActor
@@ -68,12 +69,16 @@ final class OrganizationService {
 
     func updateStatus(
         organizationID: UUID,
-        status: OrganizationVerificationStatus
+        status: OrganizationVerificationStatus,
+        catalogInstitutionID: String? = nil
     ) async throws -> OrganizationRecord {
         try await api.request(
             "/api/v1/organizations/\(organizationID.uuidString)/status",
             method: "PATCH",
-            body: BackendOrganizationStatusBody(status: status),
+            body: BackendOrganizationStatusBody(
+                status: status,
+                catalogInstitutionId: catalogInstitutionID
+            ),
             authorized: true
         )
     }

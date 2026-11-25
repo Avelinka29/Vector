@@ -163,10 +163,11 @@ private struct AdminModerationView: View {
                                     NavigationLink {
                                         AdminOrganizationApplicationReviewView(
                                             organization: organization,
-                                            onStatusChange: { status in
+                                            onStatusChange: { status, catalogInstitutionID in
                                                 try await organizationModel.setStatus(
                                                     status,
-                                                    for: organization
+                                                    for: organization,
+                                                    catalogInstitutionID: catalogInstitutionID
                                                 )
                                             }
                                         )

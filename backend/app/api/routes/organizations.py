@@ -5,7 +5,9 @@ from fastapi import APIRouter, HTTPException, Query
 from sqlalchemy import or_, select
 
 from app.api.dependencies import AdminUser, CurrentUser, SessionDependency, StaffUser
-from app.models.enums import MembershipRole, UserRole, UserStatus, VerificationStatus
+from app.models.catalog import EducationInstitution
+from app.models.enums import MembershipRole, OrganizationType, UserRole, UserStatus, VerificationStatus
+from app.models.institution_workspace import InstitutionProfile
 from app.models.organization import Organization, OrganizationMembership
 from app.models.user import User
 from app.services.institution_email import queue_decision
@@ -132,6 +134,49 @@ async def update_organization_status(
     if payload.status == VerificationStatus.ACTIVE and any(not m.email_verified for m in members):
         raise HTTPException(status_code=409, detail="Сначала учреждение должно подтвердить email")
     previous_status = organization.status
+    if (
+        payload.status == VerificationStatus.ACTIVE
+        and organization.type == OrganizationType.INSTITUTION
+        and payload.catalog_institution_id
+    ):
+        catalog = await session.get(EducationInstitution, payload.catalog_institution_id)
+        if catalog is None or not catalog.is_active:
+            raise HTTPException(status_code=400, detail="Учреждение не найдено в справочнике")
+        occupied = await session.scalar(
+            select(InstitutionProfile).where(
+                InstitutionProfile.catalog_institution_id == payload.catalog_institution_id,
+                InstitutionProfile.organization_id != organization.id,
+            )
+        )
+        if occupied is not None:
+            raise HTTPException(status_code=409, detail="Учреждение уже связано с другой организацией")
+        profile = await session.get(InstitutionProfile, organization.id)
+        if profile is None:
+            member = members[0]
+            fields = dict(
+                line.split(": ", 1)
+                for line in organization.description.splitlines()
+                if ": " in line
+            )
+            profile = InstitutionProfile(
+                organization_id=organization.id,
+                catalog_institution_id=payload.catalog_institution_id,
+                city=organization.city,
+                address=fields.get("Адрес", ""),
+                phone=fields.get("Телефон", ""),
+                email=member.email,
+                website=organization.website,
+                institution_type=(
+                    catalog.type
+                    if catalog.type in {"university", "academy", "institute", "college", "other"}
+                    else "university"
+                ),
+                published=True,
+            )
+            session.add(profile)
+        else:
+            profile.catalog_institution_id = payload.catalog_institution_id
+            profile.published = True
     organization.status = payload.status
     if previous_status != payload.status:
         for member in members:

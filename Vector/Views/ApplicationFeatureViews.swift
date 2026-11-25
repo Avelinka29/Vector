@@ -440,6 +440,7 @@ struct ApplicationStatusView: View {
 
 struct SpecialtyDetailsView: View {
     @State private var comparison = ComparisonStore.shared
+    @State private var favorites = FavoritesStore.shared
     @State private var showsComparisonLimit = false
     let specialty: SpecialtyRecord
     let institution: InstitutionRecord?
@@ -474,6 +475,22 @@ struct SpecialtyDetailsView: View {
                 }
 
                 if let institution {
+                    Button {
+                        favorites.toggle(specialty: specialty, institution: institution)
+                    } label: {
+                        Label(
+                            favorites.contains(institutionID: institution.id, specialtyID: specialty.id)
+                                ? "Убрать из избранного"
+                                : "Добавить в избранное",
+                            systemImage: favorites.contains(institutionID: institution.id, specialtyID: specialty.id)
+                                ? "heart.fill"
+                                : "heart"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.systemBlue01)
+
                     Button {
                         if !comparison.toggle(institutionID: institution.id, specialtyID: specialty.id) {
                             showsComparisonLimit = true

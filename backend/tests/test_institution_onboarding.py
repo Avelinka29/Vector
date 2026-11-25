@@ -1,4 +1,5 @@
 import re
+from uuid import UUID
 
 import httpx
 import pytest
@@ -8,7 +9,16 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from app.core.database import Base, get_session
 from app.core.security import hash_password
 from app.main import app
-from app.models import ActionToken, EmailOutbox, Organization, OrganizationMembership, RefreshToken, User
+from app.models import (
+    ActionToken,
+    EducationInstitution,
+    EmailOutbox,
+    InstitutionProfile,
+    Organization,
+    OrganizationMembership,
+    RefreshToken,
+    User,
+)
 from app.models.enums import UserRole, UserStatus
 
 
@@ -17,7 +27,10 @@ async def test_email_before_mobile_admin_approval(tmp_path):
     engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'test.db'}")
     factory = async_sessionmaker(engine, expire_on_commit=False)
     async with engine.begin() as connection:
-        tables = [m.__table__ for m in [User, Organization, OrganizationMembership, RefreshToken, ActionToken, EmailOutbox]]
+        tables = [m.__table__ for m in [
+            User, Organization, OrganizationMembership, RefreshToken, ActionToken,
+            EmailOutbox, EducationInstitution, InstitutionProfile,
+        ]]
         await connection.run_sync(lambda c: Base.metadata.create_all(c, tables=tables))
 
     async def session_override():
@@ -31,6 +44,12 @@ async def test_email_before_mobile_admin_approval(tmp_path):
                          status=UserStatus.ACTIVE, email_verified=True,
                          password_hash=hash_password("test-admin-password"))
             session.add(admin)
+            session.add(EducationInstitution(
+                id="test-university",
+                name="Test University",
+                type="university",
+                is_active=True,
+            ))
             await session.commit()
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
             admin_login = await client.post('/api/v1/auth/login', json={"email":"admin@example.com","password":"test-admin-password"})
@@ -59,9 +78,17 @@ async def test_email_before_mobile_admin_approval(tmp_path):
             assert pending["email_verified"] and not pending["access_granted"]
             assert len((await client.get('/api/v1/organizations/admin', headers=admin_headers)).json()) == 1
             assert (await client.patch(f'/api/v1/organizations/{org_id}/status', headers=headers, json={"status":"active"})).status_code == 403
-            approved = await client.patch(f'/api/v1/organizations/{org_id}/status', headers=admin_headers, json={"status":"active"})
+            approved = await client.patch(
+                f'/api/v1/organizations/{org_id}/status',
+                headers=admin_headers,
+                json={"status":"active", "catalog_institution_id":"test-university"},
+            )
             assert approved.status_code == 200, approved.text
             assert (await client.get('/api/v1/organizations/onboarding', headers=headers)).json()["access_granted"]
+            async with factory() as session:
+                linked = await session.get(InstitutionProfile, UUID(org_id))
+                assert linked.catalog_institution_id == "test-university"
+                assert linked.published is True
             await client.patch(f'/api/v1/organizations/{org_id}/status', headers=admin_headers, json={"status":"active"})
             async with factory() as session:
                 emails = list((await session.scalars(select(EmailOutbox))).all())

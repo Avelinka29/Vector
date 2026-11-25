@@ -1,4 +1,70 @@
+import Foundation
+import Observation
 import SwiftUI
+
+@MainActor
+@Observable
+final class FavoritesStore {
+    static let shared = FavoritesStore()
+
+    private(set) var institutions: [InstitutionRecord] = []
+    private(set) var specialties: [FavoriteSpecialty] = []
+
+    private let institutionsKey = "vector.favorites.institutions.v1"
+    private let specialtiesKey = "vector.favorites.specialties.v1"
+
+    private init() {
+        institutions = Self.load([InstitutionRecord].self, key: institutionsKey)
+        specialties = Self.load([FavoriteSpecialty].self, key: specialtiesKey)
+    }
+
+    func contains(institutionID: String) -> Bool {
+        institutions.contains { $0.id == institutionID }
+    }
+
+    func contains(institutionID: String, specialtyID: String) -> Bool {
+        specialties.contains { $0.id == "\(institutionID):\(specialtyID)" }
+    }
+
+    func toggle(_ institution: InstitutionRecord) {
+        if let index = institutions.firstIndex(where: { $0.id == institution.id }) {
+            institutions.remove(at: index)
+        } else {
+            institutions.append(institution)
+        }
+        save(institutions, key: institutionsKey)
+    }
+
+    func toggle(specialty: SpecialtyRecord, institution: InstitutionRecord) {
+        let favorite = FavoriteSpecialty(specialty: specialty, institution: institution)
+        if let index = specialties.firstIndex(where: { $0.id == favorite.id }) {
+            specialties.remove(at: index)
+        } else {
+            specialties.append(favorite)
+        }
+        save(specialties, key: specialtiesKey)
+    }
+
+    private func save<T: Encodable>(_ value: T, key: String) {
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        UserDefaults.standard.set(data, forKey: key)
+    }
+
+    private static func load<T: Decodable>(_ type: T.Type, key: String) -> T where T: RangeReplaceableCollection {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let value = try? JSONDecoder().decode(type, from: data) else {
+            return T()
+        }
+        return value
+    }
+}
+
+struct FavoriteSpecialty: Codable, Identifiable {
+    let specialty: SpecialtyRecord
+    let institution: InstitutionRecord
+
+    var id: String { "\(institution.id):\(specialty.id)" }
+}
 
 struct MainTabView: View {
     private enum TabDestination: Hashable {
@@ -42,6 +108,7 @@ struct MainTabView: View {
             Tab("Главная", systemImage: "house", value: .home) {
                 NavigationStack {
                     HomeView(
+                        applicantID: userID,
                         profile: profile,
                         profileStatus: profileStatus,
                         onEditProfile: onEditProfile
@@ -88,9 +155,25 @@ struct MainTabView: View {
 }
 
 struct HomeView: View {
+    let applicantID: String
     let profile: ApplicantProfile?
     let profileStatus: ProfileStatus
     let onEditProfile: () -> Void
+
+    @State private var applications: ApplicationsViewModel
+
+    init(
+        applicantID: String,
+        profile: ApplicantProfile?,
+        profileStatus: ProfileStatus,
+        onEditProfile: @escaping () -> Void
+    ) {
+        self.applicantID = applicantID
+        self.profile = profile
+        self.profileStatus = profileStatus
+        self.onEditProfile = onEditProfile
+        _applications = State(initialValue: ApplicationsViewModel(applicantID: applicantID))
+    }
 
     var body: some View {
         ScrollView {
@@ -112,15 +195,41 @@ struct HomeView: View {
                 Text("Мои заявления")
                     .font(.headline)
                     .foregroundStyle(.systemDarkBlue)
-                HomeApplicationsCard()
+                NavigationLink {
+                    AdmissionPlanView(
+                        profile: profile,
+                        profileStatus: profileStatus,
+                        applications: applications.applications,
+                        applicantID: applicantID
+                    )
+                } label: {
+                    HomeApplicationsCard(
+                        applications: applications.applications,
+                        isLoading: applications.isLoading
+                    )
+                }
+                .buttonStyle(.plain)
                 Text("Найти")
                     .font(.headline)
                     .foregroundStyle(.systemDarkBlue)
                 HomeNavigationSection()
+
+                NavigationLink {
+                    FavoritesView(applicantID: applicantID)
+                } label: {
+                    HomeFeatureCard(
+                        title: "Избранное",
+                        subtitle: "Сохранённые учреждения и специальности",
+                        icon: "heart.fill"
+                    )
+                }
+                .buttonStyle(.plain)
             }
             .padding(20)
         }
         .background(Color.systemBlue01.opacity(0.035))
+        .task { await applications.load() }
+        .refreshable { await applications.load() }
 //        .navigationTitle("Vector")
     }
 }
@@ -270,18 +379,303 @@ struct HomeFeatureCard: View {
 }
 
 struct HomeApplicationsCard: View {
+    let applications: [ApplicationRecord]
+    let isLoading: Bool
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Label("Мои заявления", systemImage: "doc.text")
                 .font(.headline)
                 .foregroundStyle(.systemDarkBlue)
-            Text("Здесь появятся ваши заявления после подключения приёмных кампаний.")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+            if isLoading && applications.isEmpty {
+                ProgressView("Обновляем план…")
+            } else if applications.isEmpty {
+                Text("Начните с выбора учреждения и создайте первое заявление.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("\(applications.count) заявлений · \(activeCount) требуют внимания")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                ProgressView(value: progress)
+                    .tint(.systemBlue01)
+                Label("Открыть план поступления", systemImage: "calendar.badge.checkmark")
+                    .font(.caption.bold())
+                    .foregroundStyle(.systemBlue01)
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(18)
         .background(.systemBlue01.opacity(0.08), in: RoundedRectangle(cornerRadius: 18))
+    }
+
+    private var activeCount: Int {
+        applications.filter { ![.accepted, .rejected].contains($0.status) }.count
+    }
+
+    private var progress: Double {
+        guard !applications.isEmpty else { return 0 }
+        let completed = applications.filter { [.accepted, .rejected].contains($0.status) }.count
+        return Double(completed) / Double(applications.count)
+    }
+}
+
+struct AdmissionPlanView: View {
+    let profile: ApplicantProfile?
+    let profileStatus: ProfileStatus
+    let applications: [ApplicationRecord]
+    let applicantID: String
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                AdmissionPlanProgress(tasks: tasks)
+                AdmissionNextAction(tasks: tasks)
+                AdmissionTaskSection(tasks: tasks)
+                AdmissionDeadlineSection(applications: applications)
+
+                NavigationLink {
+                    NewApplicationView(applicantID: applicantID)
+                } label: {
+                    Label("Добавить заявление", systemImage: "plus.circle.fill")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity, minHeight: 54)
+                        .background(.systemBlue01, in: RoundedRectangle(cornerRadius: 16))
+                }
+            }
+            .padding(20)
+            .padding(.bottom, 100)
+        }
+        .background(Color.systemBlue01.opacity(0.035))
+        .navigationTitle("Мой план")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var tasks: [AdmissionPlanTask] {
+        let selectedDocuments = profile?.documents.filter { $0.status == .selected || $0.status == .uploaded }.count ?? 0
+        return [
+            AdmissionPlanTask(
+                id: "profile",
+                title: "Заполнить цифровой профиль",
+                detail: profileStatus == .complete ? "Профиль готов" : "Добавьте обязательные личные данные",
+                icon: "person.crop.circle",
+                isComplete: profileStatus == .complete
+            ),
+            AdmissionPlanTask(
+                id: "preferences",
+                title: "Указать предпочтения",
+                detail: "Направление, город, форма обучения и финансирование",
+                icon: "slider.horizontal.3",
+                isComplete: profile?.additional.hasEducationPreferences == true
+            ),
+            AdmissionPlanTask(
+                id: "documents",
+                title: "Подготовить документы",
+                detail: selectedDocuments == 0 ? "Документы ещё не выбраны" : "Добавлено документов: \(selectedDocuments)",
+                icon: "doc.badge.plus",
+                isComplete: selectedDocuments > 0
+            ),
+            AdmissionPlanTask(
+                id: "application",
+                title: "Подать первое заявление",
+                detail: applications.isEmpty ? "Выберите учреждение и специальность" : "Заявлений: \(applications.count)",
+                icon: "paperplane",
+                isComplete: !applications.isEmpty
+            ),
+            AdmissionPlanTask(
+                id: "priorities",
+                title: "Проверить приоритеты",
+                detail: applications.count > 1 ? "Расположите варианты в желаемом порядке" : "Появится после второго заявления",
+                icon: "list.number",
+                isComplete: applications.count > 1 && prioritiesAreSequential
+            ),
+        ]
+    }
+
+    private var prioritiesAreSequential: Bool {
+        applications.map(\.priority).sorted() == Array(1...applications.count)
+    }
+}
+
+struct AdmissionPlanTask: Identifiable {
+    let id: String
+    let title: String
+    let detail: String
+    let icon: String
+    let isComplete: Bool
+}
+
+private struct AdmissionPlanProgress: View {
+    let tasks: [AdmissionPlanTask]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Готовность к поступлению")
+                .font(.headline)
+            Text("\(percentage)%")
+                .font(.largeTitle.bold())
+            ProgressView(value: Double(completed), total: Double(max(tasks.count, 1)))
+                .tint(.white)
+            Text("Выполнено \(completed) из \(tasks.count) шагов")
+                .font(.caption)
+                .opacity(0.85)
+        }
+        .foregroundStyle(.white)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(22)
+        .background(.systemBlue01, in: RoundedRectangle(cornerRadius: 20))
+    }
+
+    private var completed: Int { tasks.filter(\.isComplete).count }
+    private var percentage: Int { tasks.isEmpty ? 0 : completed * 100 / tasks.count }
+}
+
+private struct AdmissionNextAction: View {
+    let tasks: [AdmissionPlanTask]
+
+    var body: some View {
+        if let task = tasks.first(where: { !$0.isComplete }) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Что делать сейчас")
+                    .font(.caption.bold())
+                    .foregroundStyle(.systemBlue01)
+                Label(task.title, systemImage: task.icon)
+                    .font(.headline)
+                Text(task.detail)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(18)
+            .background(.systemWhite, in: RoundedRectangle(cornerRadius: 18))
+        }
+    }
+}
+
+private struct AdmissionTaskSection: View {
+    let tasks: [AdmissionPlanTask]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Шаги")
+                .font(.title2.bold())
+            ForEach(tasks) { task in
+                HStack(spacing: 14) {
+                    Image(systemName: task.isComplete ? "checkmark.circle.fill" : task.icon)
+                        .font(.title3)
+                        .foregroundStyle(task.isComplete ? .green : .systemBlue01)
+                        .frame(width: 42, height: 42)
+                        .background(Color.systemBlue01.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(task.title).font(.headline)
+                        Text(task.detail).font(.caption).foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                }
+                .padding(14)
+                .background(.systemWhite, in: RoundedRectangle(cornerRadius: 16))
+            }
+        }
+    }
+}
+
+private struct AdmissionDeadlineSection: View {
+    let applications: [ApplicationRecord]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Дедлайны")
+                .font(.title2.bold())
+            if deadlines.isEmpty {
+                Text("Учреждения пока не назначили сроки. Когда срок появится, он будет показан здесь и в уведомлениях.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .padding(18)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.systemWhite, in: RoundedRectangle(cornerRadius: 16))
+            } else {
+                ForEach(deadlines) { application in
+                    HStack(spacing: 12) {
+                        Image(systemName: "calendar.badge.exclamationmark")
+                            .foregroundStyle(.orange)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(application.institutionName).font(.headline)
+                            Text(application.submissionDeadline ?? "")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.systemWhite, in: RoundedRectangle(cornerRadius: 16))
+                }
+            }
+        }
+    }
+
+    private var deadlines: [ApplicationRecord] {
+        applications.filter { !($0.submissionDeadline ?? "").isEmpty }
+    }
+}
+
+struct FavoritesView: View {
+    let applicantID: String
+    @State private var favorites = FavoritesStore.shared
+
+    var body: some View {
+        List {
+            if favorites.institutions.isEmpty && favorites.specialties.isEmpty {
+                ContentUnavailableView {
+                    Label("Избранное пусто", systemImage: "heart")
+                } description: {
+                    Text("Сохраняйте учреждения и специальности из их карточек.")
+                }
+            }
+
+            if !favorites.institutions.isEmpty {
+                Section("Учреждения") {
+                    ForEach(favorites.institutions) { institution in
+                        NavigationLink {
+                            InstitutionDetailsView(institution: institution)
+                        } label: {
+                            InstitutionRow(institution: institution)
+                        }
+                    }
+                    .onDelete { offsets in
+                        for institution in offsets.map({ favorites.institutions[$0] }) {
+                            favorites.toggle(institution)
+                        }
+                    }
+                }
+            }
+
+            if !favorites.specialties.isEmpty {
+                Section("Специальности") {
+                    ForEach(favorites.specialties) { favorite in
+                        NavigationLink {
+                            SpecialtyDetailsView(
+                                specialty: favorite.specialty,
+                                institution: favorite.institution,
+                                applicantID: applicantID
+                            )
+                        } label: {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(favorite.specialty.name).font(.headline)
+                                Text(favorite.institution.name).font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                    }
+                    .onDelete { offsets in
+                        for favorite in offsets.map({ favorites.specialties[$0] }) {
+                            favorites.toggle(specialty: favorite.specialty, institution: favorite.institution)
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Избранное")
+        .navigationBarTitleDisplayMode(.inline)
     }
 }
 
@@ -410,6 +804,7 @@ private struct InstitutionRow: View {
 
 private struct InstitutionDetailsView: View {
     let institution: InstitutionRecord
+    @State private var favorites = FavoritesStore.shared
 
     var body: some View {
         List {
@@ -450,6 +845,19 @@ private struct InstitutionDetailsView: View {
             }
 
             Section {
+                Button {
+                    favorites.toggle(institution)
+                } label: {
+                    Label(
+                        favorites.contains(institutionID: institution.id)
+                            ? "Убрать из избранного"
+                            : "Добавить в избранное",
+                        systemImage: favorites.contains(institutionID: institution.id)
+                            ? "heart.fill"
+                            : "heart"
+                    )
+                }
+
                 NavigationLink {
                     InstitutionSpecialtiesView(
                         institution: institution
